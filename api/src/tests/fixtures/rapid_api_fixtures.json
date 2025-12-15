@@ -1,0 +1,13 @@
+{
+  "response": [
+    {
+      "fixture": { "id": 123, "date": "2026-01-01T12:00:00+00:00" },
+      "league": { "id": 39, "season": 2025 },
+      "teams": {
+        "home": { "id": 1, "name": "Home FC" },
+        "away": { "id": 2, "name": "Away FC" }
+      },
+      "goals": { "home": null, "away": null }
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    name: Deploy Infrastructure and Application
+    runs-on: ubuntu-latest
+
+    env:
+      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_image_tag: ${{ github.sha }}
+      TF_VAR_rapid_api_key: ${{ secrets.RAPID_API_KEY }}
+      TF_VAR_admin_session_secret: ${{ secrets.ADMIN_SESSION_SECRET }}
+      TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
+      TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.0"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Terraform Init
+        working-directory: terraform/dev
+        run: terraform init
+
+      - name: Terraform Plan (ECR only)
+        working-directory: terraform/dev
+        run: |
+          terraform plan -target=module.apprunner.aws_ecr_repository.api
+
+      - name: Terraform Apply (ECR only first)
+        working-directory: terraform/dev
+        run: |
+          terraform apply -auto-approve -target=module.apprunner.aws_ecr_repository.api
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get ECR repository URL
+        id: get-ecr
+        working-directory: terraform/dev
+        run: |
+          ECR_REPO=$(terraform output -raw ecr_repository_url)
+          echo "ecr_repo=$ECR_REPO" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        env:
+          ECR_REPO: ${{ steps.get-ecr.outputs.ecr_repo }}
+          IMAGE_TAG: ${{ github.sha }}
+        working-directory: api
+        run: |
+          docker build -t $ECR_REPO:$IMAGE_TAG .
+          docker push $ECR_REPO:$IMAGE_TAG
+
+      - name: Terraform Plan (Full)
+        working-directory: terraform/dev
+        run: terraform plan
+
+      - name: Terraform Apply (Full)
+        working-directory: terraform/dev
+        run: terraform apply -auto-approve
+
+      - name: Output Service URL and Admin Password
+        working-directory: terraform/dev
+        run: |
+          echo "**Service URL:** $(terraform output -raw apprunner_service_url)" >> $GITHUB_STEP_SUMMARY

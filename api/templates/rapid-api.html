@@ -1,0 +1,85 @@
+{# templates/rapid-api.html #} {% extends "sqladmin/layout.html" %} {% block
+content %}
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h1 class="h3 mb-0">RapidAPI Jobs</h1>
+      <div class="text-muted">Admin utility</div>
+      {% if user_ids is defined %}
+      <div class="text-muted small">Users: {{ user_ids|length }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if message %}
+  <div
+    class="alert {{ 'alert-success' if success else 'alert-danger' }}"
+    role="alert"
+  >
+    {{ message }}
+  </div>
+  {% endif %}
+
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold">Fetch fixtures</div>
+        <div class="text-muted small">
+          Pull upcoming fixtures for the active league.
+        </div>
+      </div>
+      <a class="btn btn-primary" href="/admin/rapid-api/run/fixtures">Run</a>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold">Fetch odds</div>
+        <div class="text-muted small">
+          Fetch missing odds for stored fixtures.
+        </div>
+      </div>
+      <a class="btn btn-primary" href="/admin/rapid-api/run/odds">Run</a>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold">Update fixtures</div>
+        <div class="text-muted small">
+          Refresh status for not-started fixtures.
+        </div>
+      </div>
+      <a class="btn btn-primary" href="/admin/rapid-api/run/updates">Run</a>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold">Settle bets</div>
+        <div class="text-muted small">
+          Settle undecided bets for finished fixtures.
+        </div>
+      </div>
+      <a class="btn btn-primary" href="/admin/rapid-api/run/settle-bets">Run</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body d-flex align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold">Settle voided bets</div>
+        <div class="text-muted small">
+          Settle undecided bets for voided fixtures.
+        </div>
+      </div>
+      <a class="btn btn-primary" href="/admin/rapid-api/run/settle-voided-bets"
+        >Run</a
+      >
+    </div>
+  </div>
+</div>
+{% endblock %}
