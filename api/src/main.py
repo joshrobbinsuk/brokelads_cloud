@@ -23,8 +23,7 @@ app.add_middleware(
 )
 if ADMIN_SESSION_SECRET is None:
     raise RuntimeError("ADMIN_SESSION_SECRET must be set")
-admin_session_secret = ADMIN_SESSION_SECRET
-app.add_middleware(SessionMiddleware, secret_key=admin_session_secret)
+app.add_middleware(SessionMiddleware, secret_key=ADMIN_SESSION_SECRET)
 
 app.include_router(rapid_api_router)
 app.include_router(client_router)
@@ -33,7 +32,7 @@ admin = Admin(
     app,
     engine,
     title="BL Admin",
-    authentication_backend=AdminAuth(secret_key=admin_session_secret),
+    authentication_backend=AdminAuth(secret_key=ADMIN_SESSION_SECRET),
 )
 register_admin_views(admin)
 

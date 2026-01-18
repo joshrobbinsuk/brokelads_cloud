@@ -1,4 +1,4 @@
-from typing import Protocol, Sequence
+from typing import Sequence
 
 from sqlalchemy import insert, update
 from sqlalchemy.orm import Session, joinedload
@@ -23,11 +23,9 @@ from ..settings import (
 
 from .schemas.fixture import (
     Fixture as FixtureSchema,
+    UpdateFixture as UpdateFixtureSchema,
 )
-
-
-class HasToDbDict(Protocol):
-    def to_db_dict(self) -> dict[str, object] | None: ...
+from .schemas.odds import Odds as OddsSchema
 
 
 def get_active_league_rapid_id(db: Session) -> int | None:
@@ -106,7 +104,9 @@ def fetch_fixtures_missing_odds(db: Session, limit: int = 50) -> list[Fixture]:
         return []
 
 
-def update_fixtures(db: Session, fixture_updates: Sequence[HasToDbDict]) -> None:
+def update_fixtures(
+    db: Session, fixture_updates: Sequence[UpdateFixtureSchema | OddsSchema]
+) -> None:
     try:
         rows = [
             row for row in (f.to_db_dict() for f in fixture_updates) if row is not None
