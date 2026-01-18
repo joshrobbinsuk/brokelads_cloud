@@ -7,7 +7,9 @@ from fastapi import (
     status as http_status,
     Query,
 )
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+
 
 from ..utils.logging import logger
 from ..database import get_db
@@ -33,7 +35,7 @@ async def get_fixtures(
     _claims: dict[str, Any] = Depends(verify_token),
 ) -> dict[str, Any]:
     fixtures = fetch_non_started_fixtures_with_odds(db, search)
-    return {"fixtures": fixtures}
+    return {"fixtures": jsonable_encoder(fixtures)}
 
 
 @router.post("/bet", status_code=http_status.HTTP_201_CREATED)
@@ -58,7 +60,7 @@ async def place_bet(
                 detail="Failed to create bet",
             )
 
-        return {"bet": bet, "message": "Bet placed successfully"}
+        return {"bet": jsonable_encoder(bet), "message": "Bet placed successfully"}
     except ClientSideError as e:
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
@@ -89,7 +91,7 @@ async def get_my_bets(
                 detail=f"Invalid bet outcome: {outcome}",
             )
     bets = get_user_bets(db, user.id, outcome, search, limit)
-    return {"bets": bets}
+    return {"bets": jsonable_encoder(bets)}
 
 
 @router.get("/me")
