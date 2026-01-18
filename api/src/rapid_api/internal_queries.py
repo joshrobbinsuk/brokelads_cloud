@@ -1,5 +1,4 @@
-from decimal import Decimal
-from typing import Any, Protocol, Sequence, cast
+from typing import Protocol, Sequence
 
 from sqlalchemy import insert, update
 from sqlalchemy.orm import Session, joinedload
@@ -34,7 +33,7 @@ class HasToDbDict(Protocol):
 def get_active_league_rapid_id(db: Session) -> int | None:
     try:
         league = db.query(League).filter(League.active.is_(True)).first()
-        return cast(int, league.rapid_api_id) if league else None
+        return league.rapid_api_id if league else None
     except Exception as e:
         logger.error(f"Error fetching active league: {e}")
         return None
@@ -165,12 +164,10 @@ def settle_bet(db: Session, bet: Bet, won: bool) -> None:
         user = db.query(User).filter(User.id == bet.user_id).first()
         if user is None:
             raise Exception(f"User {bet.user_id} not found for bet {bet.id}.")
-        bet_mut = cast(Any, bet)
         if won:
-            bet_mut.outcome = BetOutcome.WON.value
-            balance_before = cast(Decimal, user.balance)
-            user_mut = cast(Any, user)
-            user_mut.balance = balance_before + cast(Decimal, bet.returns)
+            bet.outcome = BetOutcome.WON.value
+            balance_before = user.balance
+            user.balance = balance_before + bet.returns
 
             transaction = TransactionRecord(
                 bet_id=bet.id,
@@ -180,7 +177,7 @@ def settle_bet(db: Session, bet: Bet, won: bool) -> None:
             )
             db.add(transaction)
         else:
-            bet_mut.outcome = BetOutcome.LOST.value
+            bet.outcome = BetOutcome.LOST.value
 
         db.commit()
 
@@ -197,13 +194,11 @@ def settle_voided_bet(db: Session, bet: Bet) -> None:
         user = db.query(User).filter(User.id == bet.user_id).first()
         if user is None:
             raise Exception(f"User {bet.user_id} not found for bet {bet.id}.")
-        bet_mut = cast(Any, bet)
-        bet_mut.outcome = BetOutcome.VOIDED.value
-        payout = cast(Decimal, bet.stake)
+        bet.outcome = BetOutcome.VOIDED.value
+        payout = bet.stake
 
-        balance_before = cast(Decimal, user.balance)
-        user_mut = cast(Any, user)
-        user_mut.balance = balance_before + payout
+        balance_before = user.balance
+        user.balance = balance_before + payout
 
         transaction = TransactionRecord(
             bet_id=bet.id,

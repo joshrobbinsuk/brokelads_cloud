@@ -1,5 +1,3 @@
-from typing import cast
-
 from sqlalchemy.orm import Session
 
 from ..utils.logging import logger
@@ -41,7 +39,7 @@ def run_fetch_fixtures(db: Session) -> None:
 
 def run_fetch_odds(db: Session) -> None:
     fixtures = fetch_fixtures_missing_odds(db)
-    rapid_id_to_id_map = {cast(int, f.rapid_api_id): cast(str, f.id) for f in fixtures}
+    rapid_id_to_id_map = {f.rapid_api_id: f.id for f in fixtures}
     new_odds = []
     for rapid_id in list(rapid_id_to_id_map.keys()):
         odds = fetch_odds_by_fixture(fixture_id=rapid_id)
@@ -53,7 +51,7 @@ def run_fetch_odds(db: Session) -> None:
 
 def run_fetch_fixture_updates(db: Session) -> None:
     fixtures = fetch_non_finished_fixtures(db)
-    rapid_id_to_id_map = {cast(int, f.rapid_api_id): cast(str, f.id) for f in fixtures}
+    rapid_id_to_id_map = {f.rapid_api_id: f.id for f in fixtures}
     updates = fetch_fixture_updates(list(rapid_id_to_id_map.keys()))
 
     if not updates:

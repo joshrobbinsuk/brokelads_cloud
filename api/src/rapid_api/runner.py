@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Sequence, cast
+from typing import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -31,8 +31,6 @@ def run_jobs(db: Session) -> None:
 
         else:
             logger.info(f"Running job: {job.job_name}")
-            job_mut = cast(Any, job)
-            job_mut.last_run_at = datetime.now(timezone.utc)
+            job.last_run_at = datetime.now(timezone.utc)
             db.commit()
-            job_name = cast(str, job.job_name)
-            JOB_REGISTRY[job_name](db)
+            JOB_REGISTRY[job.job_name](db)

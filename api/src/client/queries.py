@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Sequence, cast
+from typing import Sequence
 
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session
@@ -177,9 +177,8 @@ def create_bet(
             returns=returns,
         )
 
-        balance_before = cast(Decimal, user.balance)
-        user_mut = cast(Any, user)
-        user_mut.balance = balance_before - stake
+        balance_before = user.balance
+        user.balance = balance_before - stake
 
         transaction = TransactionRecord(
             bet=bet,
