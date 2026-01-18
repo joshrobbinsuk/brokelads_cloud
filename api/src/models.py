@@ -1,5 +1,6 @@
 from enum import Enum
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from sqlalchemy import (
     Column,
@@ -53,17 +54,17 @@ class User(BaseModel):
     bets = relationship("Bet", back_populates="user")
 
     @property
-    def is_authenticated(self):
+    def is_authenticated(self) -> bool:
         return True
 
     @validates("status")
-    def validate_status(self, key, value: str):
+    def validate_status(self, key: str, value: str) -> str:
         allowed = {e.value for e in UserStatus}
         if value not in allowed:
             raise ValueError(f"Invalid user status: {value}")
         return value
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.email
 
 
@@ -75,7 +76,7 @@ class League(BaseModel):
     display_name = Column(String(255), nullable=False)
     active = Column(Boolean, default=False, nullable=False)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -99,11 +100,11 @@ class Fixture(BaseModel):
     # Relationships
     bets = relationship("Bet", back_populates="fixture")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.home_team} v {self.away_team}"
 
     @property
-    def has_odds(self):
+    def has_odds(self) -> bool:
         return (
             (self.home_odds is not None)
             and (self.away_odds is not None)
@@ -142,14 +143,14 @@ class Bet(BaseModel):
     transaction_records = relationship("TransactionRecord", back_populates="bet")
 
     @validates("choice")
-    def validate_choice(self, key, value: str):
+    def validate_choice(self, key: str, value: str) -> str:
         allowed = {e.value for e in FixtureResult}
         if value not in allowed:
             raise ValueError(f"Invalid bet choice: {value}")
         return value
 
     @validates("outcome")
-    def validate_outcome(self, key, value: str):
+    def validate_outcome(self, key: str, value: str) -> str:
         allowed = {e.value for e in BetOutcome}
         if value not in allowed:
             raise ValueError(f"Invalid bet outcome: {value}")
@@ -168,7 +169,7 @@ class TransactionRecord(BaseModel):
     bet = relationship("Bet", back_populates="transaction_records")
 
     @validates("type")
-    def validate_type(self, key, value: str):
+    def validate_type(self, key: str, value: str) -> str:
         allowed = {e.value for e in TransactionType}
         if value not in allowed:
             raise ValueError(f"Invalid transaction type: {value}")
@@ -185,15 +186,17 @@ class JobControl(BaseModel):
     last_run_at = Column(DateTime(timezone=True), nullable=True)
 
     def is_due(self) -> bool:
-        if not self.enabled:
+        enabled = cast(bool, self.enabled)
+        if not enabled:
             return False
 
-        if self.last_run_at is None:
+        last_run_at = cast(datetime | None, self.last_run_at)
+        if last_run_at is None:
             return True
 
-        return datetime.now(timezone.utc) >= self.last_run_at + timedelta(
-            seconds=self.min_interval_seconds
+        return datetime.now(timezone.utc) >= last_run_at + timedelta(
+            seconds=cast(int, self.min_interval_seconds)
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.job_name} (enabled={self.enabled}, interval={self.min_interval_seconds}s)"

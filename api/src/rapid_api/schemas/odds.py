@@ -1,4 +1,4 @@
-from pydantic import BaseModel, computed_field, Field
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -44,8 +44,6 @@ class Odds(BaseModel):
     bookmakers: list[Bookmaker]
     bl_id: Optional[str] = None
 
-    @computed_field
-    @property
     def first_complete_odds(self) -> Optional[dict[str, float]]:
         for bookmaker in self.bookmakers:
             bet = bookmaker.get_match_winner_bet()
@@ -53,8 +51,8 @@ class Odds(BaseModel):
                 return bet.get_odds_dict()
         return None
 
-    def to_db_dict(self) -> Optional[dict]:
-        odds = self.first_complete_odds
+    def to_db_dict(self) -> Optional[dict[str, object]]:
+        odds = self.first_complete_odds()
         if not odds:
             return None
 
@@ -73,8 +71,8 @@ class RapidApiOddsResponse(BaseModel):
     class Config:
         populate_by_name = True
 
-    def first_complete_odds(self) -> Optional[dict]:
+    def first_complete_odds(self) -> Optional[Odds]:
         for odds_response in self.data:
-            if odds_response.first_complete_odds:
+            if odds_response.first_complete_odds():
                 return odds_response
         return None
