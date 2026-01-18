@@ -65,7 +65,7 @@ class User(BaseModel):
         return value
 
     def __str__(self) -> str:
-        return self.email
+        return cast(str, self.email)
 
 
 class League(BaseModel):
@@ -77,7 +77,7 @@ class League(BaseModel):
     active = Column(Boolean, default=False, nullable=False)
 
     def __str__(self) -> str:
-        return self.name
+        return cast(str, self.name)
 
 
 class Fixture(BaseModel):

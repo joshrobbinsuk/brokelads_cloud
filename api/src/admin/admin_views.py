@@ -1,4 +1,4 @@
-from sqladmin import ModelView
+from sqladmin import Admin, ModelView
 from ..models import League, User, Fixture, Bet, TransactionRecord, JobControl
 from .rapid_api_admin import RapidAPIAdmin
 
@@ -30,7 +30,7 @@ class JobControlAdmin(ModelView, model=JobControl):
     column_list = ["job_name", "last_run_at"]
 
 
-def register_admin_views(admin):
+def register_admin_views(admin: Admin) -> None:
     admin.add_view(UserAdmin)
     admin.add_view(LeagueAdmin)
     admin.add_view(FixtureAdmin)

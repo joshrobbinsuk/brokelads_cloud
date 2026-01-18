@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
+from typing import Any, Sequence, cast
+
+from sqlalchemy.orm import Session
 
 from ..models import JobControl
 from ..utils.logging import logger
 from .jobs import JOB_REGISTRY
 
 
-def fetch_job_controls(db):
+def fetch_job_controls(db: Session) -> Sequence[JobControl]:
     try:
         return (
             db.query(JobControl)
@@ -17,7 +20,7 @@ def fetch_job_controls(db):
         return []
 
 
-def run_jobs(db):
+def run_jobs(db: Session) -> None:
     jobs = fetch_job_controls(db)
 
     for job in jobs:
@@ -28,6 +31,8 @@ def run_jobs(db):
 
         else:
             logger.info(f"Running job: {job.job_name}")
-            job.last_run_at = datetime.now(timezone.utc)
+            job_mut = cast(Any, job)
+            job_mut.last_run_at = datetime.now(timezone.utc)
             db.commit()
-            JOB_REGISTRY[job.job_name](db)
+            job_name = cast(str, job.job_name)
+            JOB_REGISTRY[job_name](db)

@@ -11,9 +11,9 @@ router = APIRouter(prefix="/rapid-api", tags=["rapid-api"])
 
 @router.post("/run-jobs", status_code=status.HTTP_202_ACCEPTED)
 async def run(
-    x_cron_auth_key: str = Header(None),
+    x_cron_auth_key: str | None = Header(None),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     if x_cron_auth_key != CRON_AUTH_KEY or not CRON_AUTH_KEY:
         logger.warning("Unauthorized cron job attempt")
         raise HTTPException(

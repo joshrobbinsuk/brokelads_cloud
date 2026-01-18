@@ -1,7 +1,8 @@
+from typing import Generator
 from uuid import uuid4
 
 from sqlalchemy import create_engine, String, DateTime, func, Column
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, mapped_column
+from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase, mapped_column
 
 from src.settings import DATABASE_URL
 
@@ -20,7 +21,7 @@ class BaseModel(DeclarativeBase):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db

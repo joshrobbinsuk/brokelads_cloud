@@ -1,3 +1,5 @@
+from typing import Any
+
 import requests
 from functools import lru_cache
 
@@ -15,11 +17,13 @@ JWKS_URL = f"{ISSUER}/.well-known/jwks.json"
 
 
 @lru_cache()
-def get_jwks():
+def get_jwks() -> dict[str, Any]:
     return requests.get(JWKS_URL).json()
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict[str, Any]:
     token = credentials.credentials
     jwks = get_jwks()
 

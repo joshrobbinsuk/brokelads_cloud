@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -28,8 +30,8 @@ router = APIRouter(prefix="/client", tags=["client"])
 async def get_fixtures(
     search: str | None = None,
     db: Session = Depends(get_db),
-    _claims=Depends(verify_token),
-):
+    _claims: dict[str, Any] = Depends(verify_token),
+) -> dict[str, Any]:
     fixtures = fetch_non_started_fixtures_with_odds(db, search)
     return {"fixtures": fixtures}
 
@@ -39,7 +41,7 @@ async def place_bet(
     bet_request: CreateBetRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     logger.info(f"User {user.email} is placing a bet: {bet_request}")
     try:
         bet = create_bet(
@@ -77,7 +79,7 @@ async def get_my_bets(
     limit: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Get all bets for the authenticated user"""
     if outcome:
         allowed = {e.value for e in BetOutcome}
@@ -91,7 +93,7 @@ async def get_my_bets(
 
 
 @router.get("/me")
-async def get_me(user: User = Depends(get_current_user)):
+async def get_me(user: User = Depends(get_current_user)) -> dict[str, Any]:
     return {
         "id": str(user.id),
         "status": user.status,

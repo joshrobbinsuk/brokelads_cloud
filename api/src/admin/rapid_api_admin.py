@@ -1,5 +1,6 @@
 from sqladmin import BaseView, expose
 from starlette.requests import Request
+from starlette.responses import Response
 
 from ..utils.logging import logger
 from ..rapid_api.jobs import (
@@ -20,13 +21,13 @@ class RapidAPIAdmin(BaseView):
     icon = "fa-solid fa-futbol"
 
     @expose("/rapid-api", methods=["GET"])
-    async def rapid_api_page(self, request: Request):
+    async def rapid_api_page(self, request: Request) -> Response:
         return await self.templates.TemplateResponse(
             request, "rapid-api.html", {"message": "", "success": True}
         )
 
     @expose("/rapid-api/run/fixtures", methods=["GET"])
-    async def run_fixtures(self, request: Request):
+    async def run_fixtures(self, request: Request) -> Response:
         db = SessionLocal()
         try:
             run_fetch_fixtures(db)
@@ -46,7 +47,7 @@ class RapidAPIAdmin(BaseView):
             db.close()
 
     @expose("/rapid-api/run/odds", methods=["GET"])
-    async def run_odds(self, request: Request):
+    async def run_odds(self, request: Request) -> Response:
         db = SessionLocal()
         try:
             run_fetch_odds(db)
@@ -66,7 +67,7 @@ class RapidAPIAdmin(BaseView):
             db.close()
 
     @expose("/rapid-api/run/updates", methods=["GET"])
-    async def run_updates(self, request: Request):
+    async def run_updates(self, request: Request) -> Response:
         db = SessionLocal()
         try:
             run_fetch_fixture_updates(db)
@@ -86,7 +87,7 @@ class RapidAPIAdmin(BaseView):
             db.close()
 
     @expose("/rapid-api/run/settle-bets", methods=["GET"])
-    async def run_settle_bets_view(self, request: Request):
+    async def run_settle_bets_view(self, request: Request) -> Response:
         db = SessionLocal()
         try:
             run_settle_bets(db)
@@ -112,7 +113,7 @@ class RapidAPIAdmin(BaseView):
             db.close()
 
     @expose("/rapid-api/run/settle-voided-bets", methods=["GET"])
-    async def run_settle_voided_bets_view(self, request: Request):
+    async def run_settle_voided_bets_view(self, request: Request) -> Response:
         db = SessionLocal()
         try:
             run_settle_voided_bets(db)

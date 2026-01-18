@@ -1,3 +1,7 @@
+from typing import cast
+
+from sqlalchemy.orm import Session
+
 from ..utils.logging import logger
 from ..settings import N_NOT_STARTED_FIXTURES_TO_STORE
 
@@ -20,7 +24,7 @@ from .internal_queries import (
 )
 
 
-def run_fetch_fixtures(db):
+def run_fetch_fixtures(db: Session) -> None:
     league_id = get_active_league_rapid_id(db)
     if not league_id:
         logger.warning("No active league found. Skipping fixture fetch.")
@@ -35,11 +39,11 @@ def run_fetch_fixtures(db):
         logger.info("Sufficient non-started fixtures in DB. Skipping fetch.")
 
 
-def run_fetch_odds(db):
+def run_fetch_odds(db: Session) -> None:
     fixtures = fetch_fixtures_missing_odds(db)
-    rapid_id_to_id_map = {f.rapid_api_id: f.id for f in fixtures}
+    rapid_id_to_id_map = {cast(int, f.rapid_api_id): cast(str, f.id) for f in fixtures}
     new_odds = []
-    for rapid_id in rapid_id_to_id_map.keys():
+    for rapid_id in list(rapid_id_to_id_map.keys()):
         odds = fetch_odds_by_fixture(fixture_id=rapid_id)
         if odds:
             odds.bl_id = rapid_id_to_id_map.get(rapid_id)
@@ -47,10 +51,10 @@ def run_fetch_odds(db):
     update_fixtures(db, new_odds)
 
 
-def run_fetch_fixture_updates(db):
+def run_fetch_fixture_updates(db: Session) -> None:
     fixtures = fetch_non_finished_fixtures(db)
-    rapid_id_to_id_map = {f.rapid_api_id: f.id for f in fixtures}
-    updates = fetch_fixture_updates(rapid_id_to_id_map.keys())
+    rapid_id_to_id_map = {cast(int, f.rapid_api_id): cast(str, f.id) for f in fixtures}
+    updates = fetch_fixture_updates(list(rapid_id_to_id_map.keys()))
 
     if not updates:
         logger.info("No fixture updates fetched.")
@@ -61,7 +65,7 @@ def run_fetch_fixture_updates(db):
     update_fixtures(db, updates)
 
 
-def run_settle_bets(db):
+def run_settle_bets(db: Session) -> None:
     bets = fetch_bets_to_settle(db)
     for bet in bets:
         fixture = bet.fixture
@@ -72,7 +76,7 @@ def run_settle_bets(db):
             logger.error(f"Error settling bet {bet.id}: {e}")
 
 
-def run_settle_voided_bets(db):
+def run_settle_voided_bets(db: Session) -> None:
     bets = fetch_voided_bets_to_settle(db)
     for bet in bets:
         try:
