@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from sqlalchemy import insert, update
 from sqlalchemy.orm import joinedload
 

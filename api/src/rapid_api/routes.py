@@ -1,4 +1,4 @@
-from fastapi import Request, Header, APIRouter, Depends, HTTPException, status
+from fastapi import Header, APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..utils.logging import logger
@@ -15,7 +15,7 @@ async def run(
     db: Session = Depends(get_db),
 ):
     if x_cron_auth_key != CRON_AUTH_KEY or not CRON_AUTH_KEY:
-        logger.warning(f"Unauthorized cron job attempt")
+        logger.warning("Unauthorized cron job attempt")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",

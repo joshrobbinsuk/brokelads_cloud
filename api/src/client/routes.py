@@ -1,5 +1,4 @@
 from fastapi import (
-    Request,
     APIRouter,
     Depends,
     HTTPException,
@@ -27,10 +26,11 @@ router = APIRouter(prefix="/client", tags=["client"])
 
 @router.get("/fixture")
 async def get_fixtures(
+    search: str | None = None,
     db: Session = Depends(get_db),
     _claims=Depends(verify_token),
 ):
-    fixtures = fetch_non_started_fixtures_with_odds(db)
+    fixtures = fetch_non_started_fixtures_with_odds(db, search)
     return {"fixtures": fixtures}
 
 
@@ -72,6 +72,7 @@ async def place_bet(
 
 @router.get("/bet")
 async def get_my_bets(
+    search: str | None = None,
     outcome: str | None = None,
     limit: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
@@ -85,8 +86,7 @@ async def get_my_bets(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid bet outcome: {outcome}",
             )
-
-    bets = get_user_bets(db, user.id, outcome=outcome, limit=limit)
+    bets = get_user_bets(db, user.id, outcome, search, limit)
     return {"bets": bets}
 
 

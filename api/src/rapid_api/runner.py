@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 from ..models import JobControl
-from ..database import get_db
 from ..utils.logging import logger
 from .jobs import JOB_REGISTRY
 

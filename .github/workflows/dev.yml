@@ -1,4 +1,4 @@
-name: Deploy to Dev
+name: Dev Checks and Deploy
 
 on:
   push:

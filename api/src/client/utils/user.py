@@ -1,7 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ...utils.logging import logger
 from ...database import get_db
 from .cognito import verify_token
 from ...models import User
