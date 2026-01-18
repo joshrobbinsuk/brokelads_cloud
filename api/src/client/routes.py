@@ -1,12 +1,15 @@
+from typing import Any
+
 from fastapi import (
-    Request,
     APIRouter,
     Depends,
     HTTPException,
     status as http_status,
     Query,
 )
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+
 
 from ..utils.logging import logger
 from ..database import get_db
@@ -29,10 +32,10 @@ router = APIRouter(prefix="/client", tags=["client"])
 async def get_fixtures(
     search: str | None = None,
     db: Session = Depends(get_db),
-    _claims=Depends(verify_token),
-):
+    _claims: dict[str, Any] = Depends(verify_token),
+) -> dict[str, Any]:
     fixtures = fetch_non_started_fixtures_with_odds(db, search)
-    return {"fixtures": fixtures}
+    return {"fixtures": jsonable_encoder(fixtures)}
 
 
 @router.post("/bet", status_code=http_status.HTTP_201_CREATED)
@@ -40,7 +43,7 @@ async def place_bet(
     bet_request: CreateBetRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     logger.info(f"User {user.email} is placing a bet: {bet_request}")
     try:
         bet = create_bet(
@@ -57,7 +60,7 @@ async def place_bet(
                 detail="Failed to create bet",
             )
 
-        return {"bet": bet, "message": "Bet placed successfully"}
+        return {"bet": jsonable_encoder(bet), "message": "Bet placed successfully"}
     except ClientSideError as e:
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
@@ -78,7 +81,7 @@ async def get_my_bets(
     limit: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Get all bets for the authenticated user"""
     if outcome:
         allowed = {e.value for e in BetOutcome}
@@ -87,15 +90,12 @@ async def get_my_bets(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid bet outcome: {outcome}",
             )
-    logger.info(
-        f"Fetching bets for user {user.email} with outcome={outcome} limit={limit}"
-    )
     bets = get_user_bets(db, user.id, outcome, search, limit)
-    return {"bets": bets}
+    return {"bets": jsonable_encoder(bets)}
 
 
 @router.get("/me")
-async def get_me(user: User = Depends(get_current_user)):
+async def get_me(user: User = Depends(get_current_user)) -> dict[str, Any]:
     return {
         "id": str(user.id),
         "status": user.status,

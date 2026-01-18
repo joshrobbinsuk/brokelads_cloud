@@ -1,4 +1,7 @@
 from decimal import Decimal
+from typing import Sequence
+
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
 
@@ -19,7 +22,7 @@ class ClientSideError(Exception):
     pass
 
 
-def get_user(db: Session, user_id: str):
+def get_user(db: Session, user_id: str) -> User | None:
     try:
         return db.query(User).filter(User.id == user_id).first()
     except Exception as e:
@@ -91,7 +94,7 @@ def get_user_bets(
     outcome: str | None = None,
     search: str | None = None,
     limit: int | None = 30,
-):
+) -> Sequence[RowMapping]:
     try:
         stmt = (
             select(
@@ -143,7 +146,7 @@ def create_bet(
     fixture_id: str,
     choice: FixtureResult,
     stake: Decimal,
-):
+) -> dict[str, object]:
     try:
         fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
         if not fixture or not fixture.has_odds:
@@ -162,6 +165,8 @@ def create_bet(
         }
 
         odds = odds_map.get(choice)
+        if odds is None:
+            raise ClientSideError("Fixture odds are unavailable")
         returns = (stake * odds) + stake
 
         bet = Bet(
@@ -173,7 +178,7 @@ def create_bet(
         )
 
         balance_before = user.balance
-        user.balance -= stake
+        user.balance = balance_before - stake
 
         transaction = TransactionRecord(
             bet=bet,

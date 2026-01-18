@@ -1,7 +1,7 @@
-from decimal import Decimal
+from typing import Sequence
 
 from sqlalchemy import insert, update
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
 
 from ..models import (
@@ -25,11 +25,10 @@ from .schemas.fixture import (
     Fixture as FixtureSchema,
     UpdateFixture as UpdateFixtureSchema,
 )
+from .schemas.odds import Odds as OddsSchema
 
-# odds schema + typing
 
-
-def get_active_league_rapid_id(db) -> int | None:
+def get_active_league_rapid_id(db: Session) -> int | None:
     try:
         league = db.query(League).filter(League.active.is_(True)).first()
         return league.rapid_api_id if league else None
@@ -38,7 +37,7 @@ def get_active_league_rapid_id(db) -> int | None:
         return None
 
 
-def fetch_non_started_fixtures(db) -> list[Fixture]:
+def fetch_non_started_fixtures(db: Session) -> list[Fixture]:
     try:
         fixtures = (
             db.query(Fixture).filter(Fixture.status.in_(NOT_STARTED_STATUSES)).all()
@@ -49,7 +48,7 @@ def fetch_non_started_fixtures(db) -> list[Fixture]:
         return []
 
 
-def fetch_non_finished_fixtures(db) -> list[Fixture]:
+def fetch_non_finished_fixtures(db: Session) -> list[Fixture]:
     try:
         return (
             db.query(Fixture)
@@ -63,7 +62,7 @@ def fetch_non_finished_fixtures(db) -> list[Fixture]:
         return []
 
 
-def save_new_fixtures(db, fixtures: list[FixtureSchema]) -> None:
+def save_new_fixtures(db: Session, fixtures: list[FixtureSchema]) -> None:
     try:
         if not fixtures:
             return
@@ -87,7 +86,7 @@ def save_new_fixtures(db, fixtures: list[FixtureSchema]) -> None:
         raise
 
 
-def fetch_fixtures_missing_odds(db, limit: int = 50) -> list[Fixture]:
+def fetch_fixtures_missing_odds(db: Session, limit: int = 50) -> list[Fixture]:
     try:
         return (
             db.query(Fixture)
@@ -105,9 +104,15 @@ def fetch_fixtures_missing_odds(db, limit: int = 50) -> list[Fixture]:
         return []
 
 
-def update_fixtures(db, fixture_updates: list[UpdateFixtureSchema]) -> None:
+def update_fixtures(
+    db: Session, fixture_updates: Sequence[UpdateFixtureSchema | OddsSchema]
+) -> None:
     try:
-        rows = [f.to_db_dict() for f in fixture_updates]
+        rows = [
+            row for row in (f.to_db_dict() for f in fixture_updates) if row is not None
+        ]
+        if not rows:
+            return
         db.execute(update(Fixture), rows)
         db.commit()
     except Exception as e:
@@ -115,7 +120,7 @@ def update_fixtures(db, fixture_updates: list[UpdateFixtureSchema]) -> None:
         raise
 
 
-def fetch_bets_to_settle(db, limit: int = 200) -> list[Bet]:
+def fetch_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
     try:
         return (
             db.query(Bet)
@@ -134,7 +139,7 @@ def fetch_bets_to_settle(db, limit: int = 200) -> list[Bet]:
         return []
 
 
-def fetch_voided_bets_to_settle(db, limit: int = 200) -> list[Bet]:
+def fetch_voided_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
     try:
         return (
             db.query(Bet)
@@ -152,11 +157,13 @@ def fetch_voided_bets_to_settle(db, limit: int = 200) -> list[Bet]:
         return []
 
 
-def settle_bet(db, bet: Bet, won: bool) -> None:
+def settle_bet(db: Session, bet: Bet, won: bool) -> None:
     try:
         if bet.outcome != BetOutcome.UNDECIDED.value:
             raise Exception(f"Bet {bet.id} has already been settled.")
         user = db.query(User).filter(User.id == bet.user_id).first()
+        if user is None:
+            raise Exception(f"User {bet.user_id} not found for bet {bet.id}.")
         if won:
             bet.outcome = BetOutcome.WON.value
             balance_before = user.balance
@@ -180,11 +187,13 @@ def settle_bet(db, bet: Bet, won: bool) -> None:
         raise
 
 
-def settle_voided_bet(db, bet: Bet) -> None:
+def settle_voided_bet(db: Session, bet: Bet) -> None:
     try:
         if bet.outcome != BetOutcome.UNDECIDED.value:
             raise Exception(f"Bet {bet.id} has already been settled.")
         user = db.query(User).filter(User.id == bet.user_id).first()
+        if user is None:
+            raise Exception(f"User {bet.user_id} not found for bet {bet.id}.")
         bet.outcome = BetOutcome.VOIDED.value
         payout = bet.stake
 

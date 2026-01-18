@@ -2,7 +2,6 @@ from typing import Union
 
 from authlib.integrations.starlette_client import OAuth
 from sqladmin.authentication import AuthenticationBackend
-from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response, PlainTextResponse
 

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import RedirectResponse, PlainTextResponse
+from starlette.responses import RedirectResponse, PlainTextResponse, Response
 from starlette.requests import Request
 
 from sqladmin import Admin
@@ -21,6 +21,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+if ADMIN_SESSION_SECRET is None:
+    raise RuntimeError("ADMIN_SESSION_SECRET must be set")
 app.add_middleware(SessionMiddleware, secret_key=ADMIN_SESSION_SECRET)
 
 app.include_router(rapid_api_router)
@@ -35,8 +37,8 @@ admin = Admin(
 register_admin_views(admin)
 
 
-@admin.app.get("/auth/google", name="google_callback")
-async def google_callback(request: Request):
+@app.get("/auth/google", name="google_callback")
+async def google_callback(request: Request) -> Response:
     token = await oauth.google.authorize_access_token(request)
     userinfo = token.get("userinfo") or await oauth.google.parse_id_token(
         request, token
@@ -55,5 +57,5 @@ async def google_callback(request: Request):
 
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict[str, str]:
     return {"status": "ok"}

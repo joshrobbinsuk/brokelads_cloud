@@ -27,10 +27,28 @@ alembic upgrade head
 
 4. Start the server:
 ```bash
-uvicorn app.main:app --reload
+uvicorn src.main:app --reload
 ```
 
 API will be available at `http://localhost:8000`
+
+## Project Structure
+
+- `src/` application code
+- `alembic/` database migrations
+- `templates/` admin templates
+
+## Type Checking and Tests
+
+Run mypy inside the running container:
+```bash
+docker exec -w /app -it bl-api mypy --config-file /app/mypy.ini src
+```
+
+Run pytest locally (from `bl/api` on your host machine):
+```bash
+pytest
+```
 
 ## Database Migrations
 

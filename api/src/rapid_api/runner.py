@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
+from typing import Sequence
+
+from sqlalchemy.orm import Session
 
 from ..models import JobControl
-from ..database import get_db
 from ..utils.logging import logger
 from .jobs import JOB_REGISTRY
 
 
-def fetch_job_controls(db):
+def fetch_job_controls(db: Session) -> Sequence[JobControl]:
     try:
         return (
             db.query(JobControl)
@@ -18,7 +20,7 @@ def fetch_job_controls(db):
         return []
 
 
-def run_jobs(db):
+def run_jobs(db: Session) -> None:
     jobs = fetch_job_controls(db)
 
     for job in jobs:
