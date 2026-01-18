@@ -30,7 +30,7 @@ jobs:
           pip install mypy
 
       - name: Mypy
-        run: mypy --ignore-missing-imports src
+        run: mypy --config-file mypy.ini
 
       - name: Pytest
         run: pytest
