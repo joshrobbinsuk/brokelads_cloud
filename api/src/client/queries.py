@@ -15,7 +15,11 @@ from ..models import (
     UserStatus,
 )
 from ..utils.logging import logger
-from ..settings import NOT_STARTED_STATUSES
+from ..settings import (
+    CLIENT_FIXTURE_LIMIT,
+    NOT_STARTED_STATUSES,
+    PUNDIT_RECENT_BET_LIMIT,
+)
 
 
 class ClientSideError(Exception):
@@ -61,7 +65,9 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User | Non
 
 
 def fetch_non_started_fixtures_with_odds(
-    db: Session, search: str | None = None
+    db: Session,
+    search: str | None = None,
+    limit: int = CLIENT_FIXTURE_LIMIT,
 ) -> list[Fixture]:
 
     try:
@@ -82,10 +88,48 @@ def fetch_non_started_fixtures_with_odds(
                 )
             )
 
-        return query.order_by(Fixture.kick_off.asc()).limit(30).all()
+        return query.order_by(Fixture.kick_off.asc()).limit(limit).all()
     except Exception as e:
         logger.error(f"Error fetching non-started fixtures with odds: {e}")
         return []
+
+
+def fetch_visible_fixture_slate_by_ids(
+    db: Session,
+    fixture_ids: Sequence[str],
+) -> list[Fixture]:
+    requested_fixture_ids = list(dict.fromkeys(fixture_ids))
+    if not requested_fixture_ids:
+        return []
+
+    visible_fixture_ids = {
+        fixture.id
+        for fixture in fetch_non_started_fixtures_with_odds(
+            db=db,
+            limit=CLIENT_FIXTURE_LIMIT,
+        )
+    }
+    if not visible_fixture_ids:
+        return []
+
+    fixtures = (
+        db.query(Fixture)
+        .filter(
+            Fixture.id.in_(requested_fixture_ids),
+            Fixture.id.in_(list(visible_fixture_ids)),
+            Fixture.status.in_(NOT_STARTED_STATUSES),
+            Fixture.home_odds.isnot(None),
+            Fixture.away_odds.isnot(None),
+            Fixture.draw_odds.isnot(None),
+        )
+        .all()
+    )
+    fixtures_by_id = {fixture.id: fixture for fixture in fixtures}
+    return [
+        fixtures_by_id[fixture_id]
+        for fixture_id in requested_fixture_ids
+        if fixture_id in fixtures_by_id
+    ]
 
 
 def get_user_bets(
@@ -138,6 +182,14 @@ def get_user_bets(
     except Exception as e:
         logger.error(f"Error fetching bets for user {user_id}: {e}")
         return []
+
+
+def get_recent_user_bets_for_pundit(
+    db: Session,
+    user_id: str,
+    limit: int = PUNDIT_RECENT_BET_LIMIT,
+) -> Sequence[RowMapping]:
+    return get_user_bets(db=db, user_id=user_id, limit=limit)
 
 
 def create_bet(
