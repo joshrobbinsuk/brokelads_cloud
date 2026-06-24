@@ -22,8 +22,10 @@ provider "aws" {
 
 resource "random_password" "db" {
   length = 32
-  # RDS rejects / @ " and spaces in master passwords.
-  override_special = "!#$%*()-_=+[]{}"
+  # Alphanumeric only: the password is interpolated into DATABASE_URL, so any
+  # URL-reserved char (#, %, etc.) would corrupt the connection string and crash
+  # create_engine() at app startup. RDS doesn't require symbols.
+  special = false
 }
 
 module "rds" {
