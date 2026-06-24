@@ -7,12 +7,7 @@ variable "project" {
 variable "db_username" {
   description = "Database master username"
   type        = string
-  sensitive   = true
-}
-
-variable "db_password" {
-  description = "Database master password"
-  type        = string
+  default     = "bladmin"
   sensitive   = true
 }
 
@@ -34,14 +29,8 @@ variable "admin_session_secret" {
   sensitive   = true
 }
 
-variable "google_client_id" {
-  description = "Google OAuth client ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "google_client_secret" {
-  description = "Google OAuth client secret"
+variable "admin_password" {
+  description = "Permanent password for the Cognito admin user"
   type        = string
   sensitive   = true
 }

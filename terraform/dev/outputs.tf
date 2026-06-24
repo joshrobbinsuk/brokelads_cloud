@@ -16,6 +16,16 @@ output "apprunner_service_url" {
   value = module.apprunner.service_url
 }
 
+output "admin_pool_id" {
+  description = "Cognito user pool id (used by CI to patch the admin client callback URL)"
+  value       = module.cognito.user_pool_id
+}
+
+output "admin_client_id" {
+  description = "Cognito admin app client id (used by CI to patch the callback URL)"
+  value       = module.cognito.admin_client_id
+}
+
 output "frontend_api_url" {
   description = "API URL injected into the Vercel frontend project"
   value       = "https://${module.apprunner.service_url}"

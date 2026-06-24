@@ -13,3 +13,9 @@ variable "region" {
   description = "AWS region"
   type        = string
 }
+
+variable "admin_password" {
+  description = "Permanent password for the initial admin user"
+  type        = string
+  sensitive   = true
+}

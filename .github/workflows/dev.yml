@@ -11,13 +11,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
-      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_image_tag: ${{ github.sha }}
       TF_VAR_rapid_api_key: ${{ secrets.RAPID_API_KEY }}
       TF_VAR_admin_session_secret: ${{ secrets.ADMIN_SESSION_SECRET }}
-      TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
-      TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
       TF_VAR_vercel_api_token: ${{ secrets.VERCEL_API_TOKEN }}
       TF_VAR_vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -79,7 +76,28 @@ jobs:
         working-directory: terraform/dev
         run: terraform apply -auto-approve
 
-      - name: Output Service URL and Admin Password
+      - name: Set Cognito admin callback URL
+        working-directory: terraform/dev
+        run: |
+          POOL=$(terraform output -raw admin_pool_id)
+          CLIENT=$(terraform output -raw admin_client_id)
+          APPRUNNER_HOST=$(terraform output -raw apprunner_service_url)
+          # update-user-pool-client does a FULL replace of the client config, so the OAuth flags
+          # must be re-passed or they reset. These flags MUST stay in sync with the oauth attributes
+          # on the aws_cognito_user_pool_client.admin_client resource in terraform/modules/cognito.
+          aws cognito-idp update-user-pool-client \
+            --region eu-west-2 \
+            --user-pool-id "$POOL" \
+            --client-id "$CLIENT" \
+            --callback-urls "https://$APPRUNNER_HOST/auth/callback" \
+            --logout-urls "https://$APPRUNNER_HOST" \
+            --allowed-o-auth-flows code \
+            --allowed-o-auth-scopes openid email profile \
+            --allowed-o-auth-flows-user-pool-client \
+            --supported-identity-providers COGNITO \
+            > /dev/null
+
+      - name: Output Service URL
         working-directory: terraform/dev
         run: |
           echo "**Service URL:** $(terraform output -raw apprunner_service_url)" >> $GITHUB_STEP_SUMMARY

@@ -9,6 +9,10 @@ terraform {
       source  = "vercel/vercel"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -16,12 +20,18 @@ provider "aws" {
   region = "eu-west-2"
 }
 
+resource "random_password" "db" {
+  length = 32
+  # RDS rejects / @ " and spaces in master passwords.
+  override_special = "!#$%*()-_=+[]{}"
+}
+
 module "rds" {
   source  = "../modules/rds"
   project = var.project
 
   username = var.db_username
-  password = var.db_password
+  password = random_password.db.result
 
   skip_final_snapshot = true # Set to false for production
 }
@@ -32,14 +42,14 @@ module "apprunner" {
   project   = var.project
   image_tag = var.image_tag
   environment_variables = {
-    DATABASE_URL          = module.rds.connection_string
-    RAPID_API_KEY         = var.rapid_api_key
-    CRON_AUTH_KEY         = module.scheduler.cron_auth_key_value
-    ADMIN_SESSION_SECRET  = var.admin_session_secret
-    GOOGLE_CLIENT_ID      = var.google_client_id
-    GOOGLE_CLIENT_SECRET  = var.google_client_secret
-    USER_POOL_ID          = module.cognito.user_pool_id
-    COGNITO_CLIENT_ID     = module.cognito.cognito_client_id
+    DATABASE_URL                = module.rds.connection_string
+    RAPID_API_KEY               = var.rapid_api_key
+    CRON_AUTH_KEY               = module.scheduler.cron_auth_key_value
+    ADMIN_SESSION_SECRET        = var.admin_session_secret
+    ADMIN_COGNITO_CLIENT_ID     = module.cognito.admin_client_id
+    ADMIN_COGNITO_CLIENT_SECRET = module.cognito.admin_client_secret
+    USER_POOL_ID                = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID           = module.cognito.cognito_client_id
   }
 
   depends_on = [module.rds]
@@ -59,8 +69,9 @@ module "scheduler" {
 module "cognito" {
   source = "../modules/cognito"
 
-  project = var.project
-  region  = var.region
+  project        = var.project
+  region         = var.region
+  admin_password = var.admin_password
 }
 
 module "lambda" {

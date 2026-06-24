@@ -32,3 +32,48 @@ resource "aws_cognito_user_pool_client" "frontend_client" {
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 }
+
+# Admin client (Cognito-hosted OAuth login for the sqladmin UI)
+resource "aws_cognito_user_pool_client" "admin_client" {
+  name         = "${var.project}-admin-client"
+  user_pool_id = aws_cognito_user_pool.main.id
+
+  generate_secret                     = true
+  supported_identity_providers        = ["COGNITO"]
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_scopes                 = ["openid", "email", "profile"]
+
+  # Placeholders only. The real callback is the App Runner service URL, which consumes this
+  # client's id/secret — wiring it here would create a Terraform dependency cycle. CI patches
+  # the real URL post-apply via `aws cognito-idp update-user-pool-client`, so we ignore drift.
+  callback_urls = ["https://localhost/auth/callback"]
+  logout_urls   = ["https://localhost"]
+
+  lifecycle {
+    ignore_changes = [callback_urls, logout_urls]
+  }
+}
+
+resource "aws_cognito_user_group" "admins" {
+  name         = "admins"
+  user_pool_id = aws_cognito_user_pool.main.id
+}
+
+resource "aws_cognito_user" "admin" {
+  user_pool_id   = aws_cognito_user_pool.main.id
+  username       = var.admin_email
+  password       = var.admin_password
+  message_action = "SUPPRESS"
+
+  attributes = {
+    email          = var.admin_email
+    email_verified = "true"
+  }
+}
+
+resource "aws_cognito_user_in_group" "admin" {
+  user_pool_id = aws_cognito_user_pool.main.id
+  group_name   = aws_cognito_user_group.admins.name
+  username     = aws_cognito_user.admin.username
+}
