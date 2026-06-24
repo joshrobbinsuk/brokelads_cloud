@@ -15,3 +15,8 @@ output "ecr_repository_url" {
 output "apprunner_service_url" {
   value = module.apprunner.service_url
 }
+
+output "frontend_api_url" {
+  description = "API URL injected into the Vercel frontend project"
+  value       = "https://${module.apprunner.service_url}"
+}
