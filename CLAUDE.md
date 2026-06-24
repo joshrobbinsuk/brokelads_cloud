@@ -36,9 +36,11 @@ Local venv (Python 3.12, no Docker needed for tests/typecheck) lives at `api/.ve
 ```bash
 cd api
 uv venv --python 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt   # first time
-.venv/bin/mypy --config-file mypy.ini    # CI gate — currently clean (24 files)
-.venv/bin/pytest -v                      # CI gate — only a scaffold test exists today
+.venv/bin/mypy --config-file mypy.ini    # CI gate — clean
+.venv/bin/pytest -q                       # CI gate — unit + integration suite (SQLite, no DB needed)
 ```
+
+`uv` is a local convenience for the Python 3.12 interpreter; CI (`dev-pr-checks.yml`) uses plain `pip install` on 3.12 and runs the same `mypy`/`pytest`. Either works — the `.venv/bin/...` commands are identical.
 
 Format/lint via pre-commit: black (line-length 88, `api/src/` only) + ruff `--fix`. Run `pre-commit run --all-files`.
 
@@ -61,8 +63,10 @@ docker-compose exec api alembic upgrade head    # also runs automatically on con
 
 Default branch is `dev`. GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-checks.yml`); push→`dev` builds the image and Terraform-applies to the dev AWS env (`dev.yml`); merge→`main` → prod. Feature branches: `feature/<slug>`.
 
-## Known gaps
+## Tests
 
-- Test coverage is a single scaffold (`src/tests/integration_tests/test_scaffold.py`); `conftest.py` fixtures are commented out. No real test DB harness yet.
+`src/tests/` runs against an in-memory SQLite engine (a fresh one per test, see `conftest.py`) — no Postgres needed. `factories.py` builds entities. `unit_tests/` covers model properties/validators; `integration_tests/` covers `create_bet` rules and settlement (`settle_bet`/`settle_voided_bet`/`run_settle_bets`). Still uncovered: the FastAPI routes/auth dependencies, the admin UI, and the RapidAPI ingestion path (`external_calls.py` is unmocked).
+
+## Known gaps
 - `ADMIN_EMAIL` and the Cognito client/pool IDs are hardcoded (`settings.py`, `docker-compose.yml`) — fine for a demo, not for reuse.
 - `functions/agent/main.py` is a stub handler.

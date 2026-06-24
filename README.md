@@ -49,8 +49,7 @@ Admin login is Cognito-native. The DB master credentials and the admin user are 
 
 The `dev` deploy propagates the Cognito values and the App Runner API URL into the Vercel frontend project (as `NEXT_PUBLIC_*` env vars) and then triggers a frontend rebuild via the deploy hook, so the frontend no longer needs these values pasted in by hand. The Vercel project is referenced by ID and is never created or destroyed by Terraform.
 
-## Deployment
-
+### Branch-based deploys
 Changes are automatically deployed via GitHub Actions:
 - Push to `dev` → Deploys to dev environment
 - Merge to `main` → Deploys to prod environment
