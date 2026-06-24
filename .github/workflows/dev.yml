@@ -18,6 +18,8 @@ jobs:
       TF_VAR_admin_session_secret: ${{ secrets.ADMIN_SESSION_SECRET }}
       TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
       TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      TF_VAR_vercel_api_token: ${{ secrets.VERCEL_API_TOKEN }}
+      TF_VAR_vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID }}
 
     steps:
       - name: Checkout code
@@ -81,3 +83,10 @@ jobs:
         working-directory: terraform/dev
         run: |
           echo "**Service URL:** $(terraform output -raw apprunner_service_url)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Trigger Vercel frontend rebuild
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL" > /dev/null
+          echo "Triggered Vercel frontend rebuild" >> $GITHUB_STEP_SUMMARY

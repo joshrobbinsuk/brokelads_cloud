@@ -51,3 +51,20 @@ variable "region" {
   type        = string
   default     = "eu-west-2"
 }
+
+variable "vercel_api_token" {
+  description = "Vercel API token used to manage frontend project environment variables"
+  type        = string
+  sensitive   = true
+}
+
+variable "vercel_project_id" {
+  description = "ID of the existing Vercel project for the frontend (referenced, never created/destroyed here)"
+  type        = string
+}
+
+variable "vercel_team_id" {
+  description = "Vercel team ID owning the project; null for a personal account"
+  type        = string
+  default     = null
+}
