@@ -1,11 +1,18 @@
-from typing import Union
+from typing import Any, Union
 
 from authlib.integrations.starlette_client import OAuth
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response, PlainTextResponse
 
-from ..settings import ADMIN_EMAIL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+from ..settings import (
+    ADMIN_COGNITO_CLIENT_ID,
+    ADMIN_COGNITO_CLIENT_SECRET,
+    ADMIN_EMAIL,
+    REGION,
+    USER_POOL_ID,
+)
+from ..utils.logging import logger
 
 
 def _normalize_email(v: str | None) -> str | None:
@@ -16,15 +23,24 @@ def _is_allowed_email(v: str | None) -> bool:
     return _normalize_email(v) == _normalize_email(ADMIN_EMAIL)
 
 
+def _is_admin(claims: dict[str, Any]) -> bool:
+    if not _is_allowed_email(claims.get("email")):
+        return False
+    return "admins" in (claims.get("cognito:groups") or [])
+
+
 oauth = OAuth()
 oauth.register(
-    name="google",
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    name="oidc",
+    client_id=ADMIN_COGNITO_CLIENT_ID,
+    client_secret=ADMIN_COGNITO_CLIENT_SECRET,
+    server_metadata_url=(
+        f"https://cognito-idp.{REGION}.amazonaws.com/"
+        f"{USER_POOL_ID}/.well-known/openid-configuration"
+    ),
     client_kwargs={"scope": "openid email profile"},
 )
-google = oauth.create_client("google")
+oidc = oauth.create_client("oidc")
 
 
 class AdminAuth(AuthenticationBackend):
@@ -39,32 +55,33 @@ class AdminAuth(AuthenticationBackend):
     async def authenticate(self, request: Request) -> Union[bool, Response]:
         user = request.session.get("user")
         if not user:
-            # Start OAuth: send user to Google
-            redirect_uri = request.url_for("google_callback")
-            return await google.authorize_redirect(request, redirect_uri)
+            redirect_uri = request.url_for("oidc_callback")
+            return await oidc.authorize_redirect(request, redirect_uri)
 
-        # Enforce single dev user
-        if (
-            not _is_allowed_email(user.get("email"))
-            or user.get("email_verified") is False
-        ):
+        if not _is_admin(user):
             request.session.clear()
             return False
 
         return True
 
 
-async def google_callback(request: Request) -> Response:
-    token = await google.authorize_access_token(request)
-    userinfo = token.get("userinfo") or await google.parse_id_token(request, token)
+async def oidc_callback(request: Request) -> Response:
+    try:
+        token = await oidc.authorize_access_token(request)
+        # Authlib validates the id_token and populates `userinfo` from its claims on the OIDC
+        # code flow. Cognito puts `cognito:groups` in the id_token for group members, so this is
+        # the only claim source we trust for the admin gate. No fallback: a missing userinfo is an
+        # error, not a reason to source claims from somewhere lacking the groups claim.
+        claims = token.get("userinfo")
+        if not claims:
+            raise RuntimeError("OIDC token did not include id_token claims (userinfo)")
 
-    if not _is_allowed_email(userinfo.get("email")):
-        request.session.clear()
-        return PlainTextResponse("Not authorized", status_code=403)
+        if not _is_admin(claims):
+            request.session.clear()
+            return PlainTextResponse("Not authorized", status_code=403)
 
-    if userinfo.get("email_verified") is False:
-        request.session.clear()
-        return PlainTextResponse("Email not verified", status_code=403)
-
-    request.session["user"] = userinfo
-    return RedirectResponse(request.url_for("admin:index"))
+        request.session["user"] = dict(claims)
+        return RedirectResponse(request.url_for("admin:index"))
+    except Exception:
+        logger.exception("oidc_callback failed")
+        raise

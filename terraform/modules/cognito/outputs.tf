@@ -13,3 +13,12 @@ output "cognito_client_id" {
 output "user_pool_id" {
   value = aws_cognito_user_pool.main.id
 }
+
+output "admin_client_id" {
+  value = aws_cognito_user_pool_client.admin_client.id
+}
+
+output "admin_client_secret" {
+  value     = aws_cognito_user_pool_client.admin_client.client_secret
+  sensitive = true
+}
