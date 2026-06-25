@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import AsyncGenerator, Callable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -153,6 +154,53 @@ async def openai_completion_stream(
                     yield event.delta
 
 
+_MD_LINK = re.compile(r"\(?\[[^\]]*\]\((?:https?://|www\.)[^)]*\)\)?")
+_BARE_URL = re.compile(r"\(?(?:https?://|www\.)[^\s)]+\)?")
+
+
+def _strip_sources(text: str) -> str:
+    """Remove markdown links and bare URLs (web_search citations) from a reply."""
+    return _BARE_URL.sub("", _MD_LINK.sub("", text))
+
+
+class _SourceStripper:
+    """Strips source links from a streamed reply, holding back a tail that might be
+    an as-yet-incomplete link/URL until it resolves, so nothing leaks mid-stream."""
+
+    def __init__(self) -> None:
+        self._buf = ""
+        self._emitted = 0
+
+    def feed(self, delta: str) -> str:
+        self._buf += delta
+        return self._emit(self._safe_len())
+
+    def flush(self) -> str:
+        return self._emit(len(self._buf))
+
+    def _emit(self, upto: int) -> str:
+        cleaned = _strip_sources(self._buf[:upto])
+        out = cleaned[self._emitted :]
+        self._emitted = len(cleaned)
+        return out
+
+    def _safe_len(self) -> int:
+        # Hold back from the start of any construct that could still grow into a link:
+        # an unclosed markdown link, or a trailing token that is (or is becoming) a URL.
+        buf = self._buf
+        holds: list[int] = []
+        lb = buf.rfind("[")
+        if lb != -1 and not re.search(r"\]\([^)]*\)", buf[lb:]):
+            holds.append(lb - 1 if buf[lb - 1 : lb] == "(" else lb)
+        trailing = re.search(r"\S+$", buf)
+        if trailing:
+            low = trailing.group(0).lstrip("(").lower()
+            schemes = ("http://", "https://", "www.")
+            if low and (low.startswith(schemes) or any(s.startswith(low) for s in schemes)):
+                holds.append(trailing.start())
+        return min(holds) if holds else len(buf)
+
+
 async def stream_pundit_response(
     context: PunditContext,
     *,
@@ -164,11 +212,18 @@ async def stream_pundit_response(
     )
 
     parts: list[str] = []
+    stripper = _SourceStripper()
     inner = completion_stream(context)
     try:
         async for delta in inner:
-            parts.append(delta)
-            yield PunditStreamEvent(event="message_delta", data={"delta": delta})
+            out = stripper.feed(delta)
+            if out:
+                parts.append(out)
+                yield PunditStreamEvent(event="message_delta", data={"delta": out})
+        tail = stripper.flush()
+        if tail:
+            parts.append(tail)
+            yield PunditStreamEvent(event="message_delta", data={"delta": tail})
     except Exception:
         logger.exception("Pundit completion stream failed mid-stream")
         yield PunditStreamEvent(

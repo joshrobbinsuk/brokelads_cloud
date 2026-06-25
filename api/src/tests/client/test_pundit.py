@@ -352,3 +352,51 @@ def test_disconnect_closes_completion_stream() -> None:
 
     asyncio.run(consume_then_disconnect())
     assert closed["value"] is True
+
+
+def test_source_links_stripped_from_stream() -> None:
+    """web_search citations (markdown links / bare URLs) must never reach the client,
+    even when a link is split across streaming chunks."""
+
+    chunks = [
+        "Arsenal at (1.95) look ",
+        "tasty, son ([fft.com]",
+        "(https://www.fourfourtwo.com/x?utm_source=openai)) ",
+        "and see https://bbc.co.uk/sport too",
+    ]
+
+    async def fake_completion_stream(
+        context: PunditContext,
+    ) -> AsyncGenerator[str, None]:
+        for chunk in chunks:
+            yield chunk
+
+    context = PunditContext(
+        system_prompt="p",
+        model="gpt-5-mini",
+        user_id="u1",
+        fixtures=[],
+        recent_bets=[],
+        conversation=[{"role": "user", "content": "hi"}],
+    )
+
+    async def collect() -> tuple[str, str]:
+        deltas: list[str] = []
+        complete = ""
+        async for ev in stream_pundit_response(
+            context, completion_stream=fake_completion_stream
+        ):
+            if ev.event == "message_delta":
+                deltas.append(str(ev.data["delta"]))
+            elif ev.event == "message_complete":
+                complete = str(ev.data["content"])
+        return "".join(deltas), complete
+
+    import asyncio
+
+    streamed, complete = asyncio.run(collect())
+    assert streamed == complete  # delta-concatenation invariant preserved
+    for marker in ("http", "](", "www."):
+        assert marker not in streamed
+    assert "Arsenal at (1.95)" in streamed  # prose and odds survive
+    assert "tasty, son" in streamed
