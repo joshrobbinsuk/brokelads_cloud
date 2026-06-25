@@ -34,6 +34,12 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
+# Comma-separated allowlist of emails permitted to spend the OpenAI budget. The
+# default locks the deployed demo to one account; set "" to disable the gate.
+PUNDIT_ALLOWED_EMAILS = os.getenv(
+    "PUNDIT_ALLOWED_EMAILS", "joshrobbinsukdev+test@gmail.com"
+)
+
 
 # all_statuses = [
 #     "TBD", "NS", "1H", "HT", "2H", "ET", "BT", "P",

@@ -9,6 +9,7 @@ from openai.types.chat import ChatCompletionChunk
 from sqlalchemy.engine import RowMapping
 
 from .pundit_schemas import PunditConversationTurn
+from .. import settings
 from ..models import Fixture, User
 from ..settings import (
     OPENAI_API_KEY,
@@ -36,6 +37,23 @@ class PunditContext:
 
 
 CompletionStream = Callable[[PunditContext], AsyncGenerator[str, None]]
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def is_email_allowed(email: str | None) -> bool:
+    """Whether `email` may use the pundit. Reads the allowlist from settings at
+    call time. An empty allowlist disables the gate (allow all)."""
+    allowed = {
+        _normalize_email(entry)
+        for entry in settings.PUNDIT_ALLOWED_EMAILS.split(",")
+        if entry.strip()
+    }
+    if not allowed:
+        return True
+    return email is not None and _normalize_email(email) in allowed
 
 
 def _serialize_decimal(value: Decimal | None) -> str | None:

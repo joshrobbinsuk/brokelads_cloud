@@ -30,7 +30,7 @@ from .queries import (
 )
 from .schemas import CreateBetRequest
 from .pundit_schemas import AskPunditRequest
-from .pundit import build_pundit_context, stream_pundit_response
+from .pundit import build_pundit_context, is_email_allowed, stream_pundit_response
 
 router = APIRouter(prefix="/client", tags=["client"])
 
@@ -107,6 +107,12 @@ async def ask_pundit(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> StreamingResponse:
+    if not is_email_allowed(user.email):
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Ask the Pundit is limited to approved accounts.",
+        )
+
     fixtures = fetch_visible_fixture_slate_by_ids(db, request.fixture_ids)
     found_ids = {fixture.id for fixture in fixtures}
     missing = [
