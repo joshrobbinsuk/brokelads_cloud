@@ -1,3 +1,5 @@
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import (
@@ -8,6 +10,7 @@ from fastapi import (
     Query,
 )
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 
@@ -19,11 +22,15 @@ from ..models import User, BetOutcome
 
 from .queries import (
     fetch_non_started_fixtures_with_odds,
+    fetch_visible_fixture_slate_by_ids,
+    get_recent_user_bets_for_pundit,
     create_bet,
     get_user_bets,
     ClientSideError,
 )
 from .schemas import CreateBetRequest
+from .pundit_schemas import AskPunditRequest
+from .pundit import build_pundit_context, stream_pundit_response
 
 router = APIRouter(prefix="/client", tags=["client"])
 
@@ -92,6 +99,37 @@ async def get_my_bets(
             )
     bets = get_user_bets(db, user.id, outcome, search, limit)
     return {"bets": jsonable_encoder(bets)}
+
+
+@router.post("/pundit")
+async def ask_pundit(
+    request: AskPunditRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    fixtures = fetch_visible_fixture_slate_by_ids(db, request.fixture_ids)
+    found_ids = {fixture.id for fixture in fixtures}
+    missing = [
+        fixture_id for fixture_id in request.fixture_ids if fixture_id not in found_ids
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=f"Fixtures not in the current visible slate: {missing}",
+        )
+
+    recent_bets = get_recent_user_bets_for_pundit(db, user.id)
+    context = build_pundit_context(user, fixtures, recent_bets, request.conversation)
+
+    async def event_source() -> AsyncIterator[str]:
+        async for event in stream_pundit_response(context):
+            yield f"event: {event.event}\ndata: {json.dumps(event.data)}\n\n"
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/me")

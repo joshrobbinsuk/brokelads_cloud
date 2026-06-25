@@ -14,6 +14,26 @@ ADMIN_SESSION_SECRET = os.getenv("ADMIN_SESSION_SECRET")
 ADMIN_COGNITO_CLIENT_ID = os.getenv("ADMIN_COGNITO_CLIENT_ID")
 ADMIN_COGNITO_CLIENT_SECRET = os.getenv("ADMIN_COGNITO_CLIENT_SECRET")
 
+CLIENT_FIXTURE_LIMIT = int(os.getenv("CLIENT_FIXTURE_LIMIT", "30"))
+
+PUNDIT_RECENT_BET_LIMIT = int(os.getenv("PUNDIT_RECENT_BET_LIMIT", "5"))
+PUNDIT_SYSTEM_PROMPT = os.getenv(
+    "PUNDIT_SYSTEM_PROMPT",
+    (
+        "You are a playful, knowledgeable football pundit for the BrokeLads betting "
+        "app. Keep replies short (a few sentences). Ground every steer strictly in "
+        "the fixtures and the user's recent bet history provided to you in the "
+        "context. Talk about form, value and storylines, but avoid certainty: never "
+        "promise a result or guarantee a winner. You CANNOT place, change or settle "
+        "bets and must never imply that you can; the user does all of that "
+        "themselves in the app."
+    ),
+)
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+
 
 # all_statuses = [
 #     "TBD", "NS", "1H", "HT", "2H", "ET", "BT", "P",

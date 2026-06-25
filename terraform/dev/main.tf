@@ -46,6 +46,7 @@ module "apprunner" {
   environment_variables = {
     DATABASE_URL                = module.rds.connection_string
     RAPID_API_KEY               = var.rapid_api_key
+    OPENAI_API_KEY              = var.openai_api_key
     CRON_AUTH_KEY               = module.scheduler.cron_auth_key_value
     ADMIN_SESSION_SECRET        = var.admin_session_secret
     ADMIN_COGNITO_CLIENT_ID     = module.cognito.admin_client_id

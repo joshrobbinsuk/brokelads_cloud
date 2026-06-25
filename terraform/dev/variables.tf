@@ -23,6 +23,12 @@ variable "rapid_api_key" {
   sensitive   = true
 }
 
+variable "openai_api_key" {
+  description = "OpenAI API key for the Ask the Pundit feature"
+  type        = string
+  sensitive   = true
+}
+
 variable "admin_session_secret" {
   description = "Secret used to sign admin sessions"
   type        = string
