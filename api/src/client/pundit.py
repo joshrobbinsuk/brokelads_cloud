@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 from openai import AsyncOpenAI, AsyncStream
-from openai.types.chat import ChatCompletionChunk
+from openai.types.responses import ResponseStreamEvent
 from sqlalchemy.engine import RowMapping
 
 from .pundit_schemas import PunditConversationTurn
@@ -116,19 +116,16 @@ def build_pundit_context(
     )
 
 
-def _build_messages(context: PunditContext) -> list[dict[str, str]]:
+def _build_responses_input(context: PunditContext) -> list[dict[str, str]]:
     preamble = (
-        "Here is the data you are grounded in. Only reason about these fixtures and "
-        "the user's recent bets.\n\n"
+        "Here is the slate you are grounded in. Reason about these fixtures and the "
+        "user's recent bets.\n\n"
         f"VISIBLE FIXTURES (JSON):\n{json.dumps(context.fixtures)}\n\n"
         f"USER RECENT BETS (JSON):\n{json.dumps(context.recent_bets)}"
     )
-    messages: list[dict[str, str]] = [
-        {"role": "system", "content": context.system_prompt},
-        {"role": "system", "content": preamble},
-    ]
-    messages.extend(context.conversation)
-    return messages
+    items: list[dict[str, str]] = [{"role": "developer", "content": preamble}]
+    items.extend(context.conversation)
+    return items
 
 
 async def openai_completion_stream(
@@ -140,19 +137,20 @@ async def openai_completion_stream(
     # async with on both the client and the stream guarantees the HTTP connection
     # is released whether the consumer finishes, raises, or is cancelled mid-stream
     # (Starlette throws GeneratorExit/CancelledError in here on client disconnect).
+    # Responses API + the built-in web_search tool: the model decides when to search,
+    # OpenAI runs it server-side, and we stream only the final answer text deltas.
     async with AsyncOpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL) as client:
-        result = await client.chat.completions.create(
+        result = await client.responses.create(
             model=context.model,
-            messages=_build_messages(context),  # type: ignore[arg-type]
+            instructions=context.system_prompt,
+            input=_build_responses_input(context),  # type: ignore[arg-type]
+            tools=[{"type": "web_search"}],
             stream=True,
         )
-        async with cast("AsyncStream[ChatCompletionChunk]", result) as stream:
-            async for chunk in stream:
-                if not chunk.choices:
-                    continue
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    yield delta
+        async with cast("AsyncStream[ResponseStreamEvent]", result) as stream:
+            async for event in stream:
+                if event.type == "response.output_text.delta":
+                    yield event.delta
 
 
 async def stream_pundit_response(
