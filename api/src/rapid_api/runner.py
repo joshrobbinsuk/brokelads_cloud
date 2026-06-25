@@ -15,9 +15,9 @@ def fetch_job_controls(db: Session) -> Sequence[JobControl]:
             .filter(JobControl.job_name.in_(JOB_REGISTRY.keys()))
             .all()
         )
-    except Exception as e:
-        logger.error(f"Error fetching job controls: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching job controls")
+        raise
 
 
 def run_jobs(db: Session) -> None:

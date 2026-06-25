@@ -25,20 +25,20 @@ class ClientSideError(Exception):
 def get_user(db: Session, user_id: str) -> User | None:
     try:
         return db.query(User).filter(User.id == user_id).first()
-    except Exception as e:
-        logger.error(f"Error fetching user {user_id}: {e}")
-        return None
+    except Exception:
+        logger.exception(f"Error fetching user {user_id}")
+        raise
 
 
 def get_user_by_cognito_id(db: Session, cognito_uuid: str) -> User | None:
     try:
         return db.query(User).filter(User.cognito_uuid == cognito_uuid).first()
-    except Exception as e:
-        logger.error(f"Error fetching user by cognito_uuid {cognito_uuid}: {e}")
-        return None
+    except Exception:
+        logger.exception(f"Error fetching user by cognito_uuid {cognito_uuid}")
+        raise
 
 
-def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User | None:
+def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
     try:
         user = get_user_by_cognito_id(db, cognito_uuid)
 
@@ -54,10 +54,10 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User | Non
             logger.info(f"Created new user: {email} ({cognito_uuid})")
 
         return user
-    except Exception as e:
+    except Exception:
         db.rollback()
-        logger.error(f"Error getting or creating user {email}: {e}")
-        return None
+        logger.exception(f"Error getting or creating user {email}")
+        raise
 
 
 def fetch_non_started_fixtures_with_odds(
@@ -83,9 +83,9 @@ def fetch_non_started_fixtures_with_odds(
             )
 
         return query.order_by(Fixture.kick_off.asc()).limit(30).all()
-    except Exception as e:
-        logger.error(f"Error fetching non-started fixtures with odds: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching non-started fixtures with odds")
+        raise
 
 
 def get_user_bets(
@@ -135,9 +135,9 @@ def get_user_bets(
         rows = db.execute(stmt).mappings().all()
         return rows
 
-    except Exception as e:
-        logger.error(f"Error fetching bets for user {user_id}: {e}")
-        return []
+    except Exception:
+        logger.exception(f"Error fetching bets for user {user_id}")
+        raise
 
 
 def create_bet(
@@ -193,7 +193,11 @@ def create_bet(
 
         return {"id": bet.id, "returns": bet.returns}
 
-    except Exception as e:
+    except ClientSideError:
+        # Expected domain rejection (bad fixture, insufficient funds, …) — control
+        # flow, not a fault. No writes have happened yet, so nothing to roll back.
+        raise
+    except Exception:
         db.rollback()
-        logger.error(f"Error creating bet: {e}")
+        logger.exception("Error creating bet")
         raise

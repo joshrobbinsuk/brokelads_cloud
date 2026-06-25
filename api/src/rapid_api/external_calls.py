@@ -29,8 +29,11 @@ def fetch_fixtures_by_league(league_id: int, next: int = 20) -> list[Fixture]:
         fixtures = RapidApiFixturesResponse(**response.json()).data
         logger.info(f"Fetched {len(fixtures)} fixtures for league {league_id}")
         return fixtures
-    except Exception as e:
-        logger.error(f"Exception in fetch_fixtures_by_league: {e}")
+    except Exception:
+        # External API boundary: a 3rd-party blip should fail-soft so the job
+        # retries next tick rather than crashing the run. logger.exception keeps
+        # the traceback for observability.
+        logger.exception("Exception in fetch_fixtures_by_league")
         return []
 
 
@@ -44,8 +47,8 @@ def fetch_odds_by_fixture(fixture_id: int) -> Odds | None:
             )
         odds = RapidApiOddsResponse(**response.json()).first_complete_odds()
         return odds
-    except Exception as e:
-        logger.error(f"Exception in fetch_odds_by_fixture: {e}")
+    except Exception:
+        logger.exception("Exception in fetch_odds_by_fixture")
         return None
 
 
@@ -62,6 +65,6 @@ def fetch_fixture_updates(fixture_ids: List[int]) -> list[UpdateFixture]:
             )
         fixture_updates = RapidApiUpdateFixturesResponse(**response.json()).data
         return fixture_updates
-    except Exception as e:
-        logger.error(f"Exception in fetch_fixture_updates: {e}")
+    except Exception:
+        logger.exception("Exception in fetch_fixture_updates")
         return []
