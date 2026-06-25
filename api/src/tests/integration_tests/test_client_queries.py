@@ -1,9 +1,10 @@
 """User provisioning and the user-facing read queries (client.queries)."""
 
-from decimal import Decimal
 
+import pytest
 from sqlalchemy.orm import Session
 
+from src.database import BaseModel
 from src.models import BetOutcome, FixtureResult, User, UserStatus
 from src.client.queries import (
     fetch_non_started_fixtures_with_odds,
@@ -30,6 +31,12 @@ class TestGetOrCreateUser:
         assert first is not None and second is not None
         assert first.id == second.id
         assert db.query(User).count() == 1
+
+    def test_reraises_on_db_error_rather_than_swallowing(self, db: Session) -> None:
+        # A DB fault must propagate, not surface as a misleading "no user".
+        BaseModel.metadata.drop_all(bind=db.get_bind())
+        with pytest.raises(Exception):
+            get_or_create_user(db, cognito_uuid="abc-123", email="new@test.com")
 
 
 class TestFetchNonStartedFixturesWithOdds:

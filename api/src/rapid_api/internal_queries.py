@@ -32,9 +32,9 @@ def get_active_league_rapid_id(db: Session) -> int | None:
     try:
         league = db.query(League).filter(League.active.is_(True)).first()
         return league.rapid_api_id if league else None
-    except Exception as e:
-        logger.error(f"Error fetching active league: {e}")
-        return None
+    except Exception:
+        logger.exception("Error fetching active league")
+        raise
 
 
 def fetch_non_started_fixtures(db: Session) -> list[Fixture]:
@@ -43,9 +43,9 @@ def fetch_non_started_fixtures(db: Session) -> list[Fixture]:
             db.query(Fixture).filter(Fixture.status.in_(NOT_STARTED_STATUSES)).all()
         )
         return fixtures
-    except Exception as e:
-        logger.error(f"Error fetching non-started fixtures: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching non-started fixtures")
+        raise
 
 
 def fetch_non_finished_fixtures(db: Session) -> list[Fixture]:
@@ -57,9 +57,9 @@ def fetch_non_finished_fixtures(db: Session) -> list[Fixture]:
             .limit(20)
             .all()
         )
-    except Exception as e:
-        logger.error(f"Error fetching non-finished fixtures: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching non-finished fixtures")
+        raise
 
 
 def save_new_fixtures(db: Session, fixtures: list[FixtureSchema]) -> None:
@@ -81,8 +81,8 @@ def save_new_fixtures(db: Session, fixtures: list[FixtureSchema]) -> None:
             db.commit()
         else:
             logger.info("No new fixtures to save.")
-    except Exception as e:
-        logger.error(f"Error saving new fixtures: {e}")
+    except Exception:
+        logger.exception("Error saving new fixtures")
         raise
 
 
@@ -99,9 +99,9 @@ def fetch_fixtures_missing_odds(db: Session, limit: int = 50) -> list[Fixture]:
             .limit(limit)
             .all()
         )
-    except Exception as e:
-        logger.error(f"Error fetching fixtures missing odds: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching fixtures missing odds")
+        raise
 
 
 def update_fixtures(
@@ -115,8 +115,8 @@ def update_fixtures(
             return
         db.execute(update(Fixture), rows)
         db.commit()
-    except Exception as e:
-        logger.error(f"Error updating fixtures: {e}")
+    except Exception:
+        logger.exception("Error updating fixtures")
         raise
 
 
@@ -134,9 +134,9 @@ def fetch_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
             .limit(limit)
             .all()
         )
-    except Exception as e:
-        logger.error(f"Error fetching bets to settle: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching bets to settle")
+        raise
 
 
 def fetch_voided_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
@@ -152,9 +152,9 @@ def fetch_voided_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
             .limit(limit)
             .all()
         )
-    except Exception as e:
-        logger.error(f"Error fetching voided bets to settle: {e}")
-        return []
+    except Exception:
+        logger.exception("Error fetching voided bets to settle")
+        raise
 
 
 def settle_bet(db: Session, bet: Bet, won: bool) -> None:
@@ -181,9 +181,9 @@ def settle_bet(db: Session, bet: Bet, won: bool) -> None:
 
         db.commit()
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        logger.error(f"Error settling bet {bet.id}: {e}")
+        logger.exception(f"Error settling bet {bet.id}")
         raise
 
 
@@ -210,7 +210,7 @@ def settle_voided_bet(db: Session, bet: Bet) -> None:
         db.add(transaction)
         db.commit()
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        logger.error(f"Error settling voided bet {bet.id}: {e}")
+        logger.exception(f"Error settling voided bet {bet.id}")
         raise

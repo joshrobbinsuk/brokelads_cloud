@@ -66,8 +66,8 @@ async def place_bet(
             status_code=http_status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
-        logger.error(f"Error placing bet: {e}")
+    except Exception:
+        logger.exception("Error placing bet")
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while placing the bet",

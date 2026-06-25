@@ -14,7 +14,6 @@ from src.rapid_api.schemas.odds import (
     RapidApiOddsResponse,
 )
 
-
 # --- payload builders (shapes mirror the api-sports v3 responses) ---------------
 
 
@@ -32,7 +31,9 @@ def _match_winner_market(
 
 
 def _odds(bookmakers: list[dict], fixture_id: int = 100) -> Odds:
-    return Odds.model_validate({"fixture": {"id": fixture_id}, "bookmakers": bookmakers})
+    return Odds.model_validate(
+        {"fixture": {"id": fixture_id}, "bookmakers": bookmakers}
+    )
 
 
 def _bookmaker(name: str, market: dict) -> dict:
@@ -107,14 +108,19 @@ class TestOddsToDbDict:
 class TestRapidApiOddsResponse:
     def test_returns_first_response_with_complete_odds(self) -> None:
         empty = {"fixture": {"id": 1}, "bookmakers": []}
-        good = {"fixture": {"id": 2}, "bookmakers": [_bookmaker("Bet365", _match_winner_market())]}
+        good = {
+            "fixture": {"id": 2},
+            "bookmakers": [_bookmaker("Bet365", _match_winner_market())],
+        }
         resp = RapidApiOddsResponse.model_validate({"response": [empty, good]})
 
         selected = resp.first_complete_odds()
         assert selected is not None and selected.fixture.id == 2
 
     def test_returns_none_when_nothing_complete(self) -> None:
-        resp = RapidApiOddsResponse.model_validate({"response": [{"fixture": {"id": 1}, "bookmakers": []}]})
+        resp = RapidApiOddsResponse.model_validate(
+            {"response": [{"fixture": {"id": 1}, "bookmakers": []}]}
+        )
         assert resp.first_complete_odds() is None
 
 
@@ -123,7 +129,9 @@ class TestRapidApiOddsResponse:
 
 class TestFixtureToDbDict:
     def test_maps_payload_to_row(self) -> None:
-        fixture = FixtureSchema.model_validate(_fixture_payload(fixture_id=42, status="NS"))
+        fixture = FixtureSchema.model_validate(
+            _fixture_payload(fixture_id=42, status="NS")
+        )
 
         row = fixture.to_db_dict()
 
@@ -143,7 +151,9 @@ class TestFixtureToDbDict:
         assert "voided" in row and "voided_message" in row
 
     def test_response_alias_parses_response_key(self) -> None:
-        resp = RapidApiFixturesResponse.model_validate({"response": [_fixture_payload(fixture_id=7)]})
+        resp = RapidApiFixturesResponse.model_validate(
+            {"response": [_fixture_payload(fixture_id=7)]}
+        )
         assert len(resp.data) == 1 and resp.data[0].info.id == 7
 
 

@@ -24,12 +24,4 @@ async def get_current_user(
             detail="Token missing email claim",
         )
 
-    user = get_or_create_user(db, cognito_uuid, email)
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get or create user",
-        )
-
-    return user
+    return get_or_create_user(db, cognito_uuid, email)

@@ -4,8 +4,10 @@ dispatch. Network-backed jobs are exercised only through the DB-only settle jobs
 
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.orm import Session
 
+from src.database import BaseModel
 from src.models import (
     Bet,
     BetOutcome,
@@ -59,7 +61,11 @@ def _odds_schema(bl_id: str, rapid_id: int, complete: bool = True) -> OddsSchema
         {
             "fixture": {"id": rapid_id},
             "bookmakers": [
-                {"id": 1, "name": "Bet365", "bets": [{"id": 1, "name": "Match Winner", "values": values}]}
+                {
+                    "id": 1,
+                    "name": "Bet365",
+                    "bets": [{"id": 1, "name": "Match Winner", "values": values}],
+                }
             ],
         }
     )
@@ -85,7 +91,9 @@ class TestUpdateFixtures:
     def test_writes_odds_onto_existing_fixture(self, db: Session) -> None:
         fixture = make_fixture(db, home_odds=None, away_odds=None, draw_odds=None)
 
-        update_fixtures(db, [_odds_schema(bl_id=fixture.id, rapid_id=fixture.rapid_api_id)])
+        update_fixtures(
+            db, [_odds_schema(bl_id=fixture.id, rapid_id=fixture.rapid_api_id)]
+        )
 
         db.refresh(fixture)
         assert fixture.home_odds == Decimal("2.00")
@@ -95,7 +103,14 @@ class TestUpdateFixtures:
         fixture = make_fixture(db, home_odds=None, away_odds=None, draw_odds=None)
 
         # to_db_dict() returns None for incomplete odds -> nothing to write, no error.
-        update_fixtures(db, [_odds_schema(bl_id=fixture.id, rapid_id=fixture.rapid_api_id, complete=False)])
+        update_fixtures(
+            db,
+            [
+                _odds_schema(
+                    bl_id=fixture.id, rapid_id=fixture.rapid_api_id, complete=False
+                )
+            ],
+        )
 
         db.refresh(fixture)
         assert fixture.home_odds is None
@@ -103,8 +118,16 @@ class TestUpdateFixtures:
 
 class TestFetchFilters:
     def test_get_active_league_returns_rapid_id(self, db: Session) -> None:
-        db.add(League(rapid_api_id=39, name="EPL", display_name="Premier League", active=True))
-        db.add(League(rapid_api_id=140, name="LaLiga", display_name="La Liga", active=False))
+        db.add(
+            League(
+                rapid_api_id=39, name="EPL", display_name="Premier League", active=True
+            )
+        )
+        db.add(
+            League(
+                rapid_api_id=140, name="LaLiga", display_name="La Liga", active=False
+            )
+        )
         db.commit()
         assert get_active_league_rapid_id(db) == 39
 
@@ -119,17 +142,29 @@ class TestFetchFilters:
         result = fetch_non_started_fixtures(db)
         assert [f.status for f in result] == ["NS"]
 
+    def test_fetch_reraises_on_db_error_rather_than_swallowing(
+        self, db: Session
+    ) -> None:
+        # Read-path queries must surface a DB fault, not hide it as an empty result.
+        BaseModel.metadata.drop_all(bind=db.get_bind())
+        with pytest.raises(Exception):
+            fetch_non_started_fixtures(db)
+
     def test_missing_odds_requires_all_three_null(self, db: Session) -> None:
         make_fixture(db, home_odds=None, away_odds=None, draw_odds=None)
         make_fixture(db, home_odds=Decimal("2.00"), away_odds=None, draw_odds=None)
         result = fetch_fixtures_missing_odds(db)
         assert len(result) == 1
 
-    def test_bets_to_settle_only_undecided_on_finished_fixtures(self, db: Session) -> None:
+    def test_bets_to_settle_only_undecided_on_finished_fixtures(
+        self, db: Session
+    ) -> None:
         user = make_user(db)
         played = make_fixture(db, status="FT", home_goals=2, away_goals=1)
         upcoming = make_fixture(db, status="NS")
-        target = make_bet(db, user=user, fixture=played, outcome=BetOutcome.UNDECIDED.value)
+        target = make_bet(
+            db, user=user, fixture=played, outcome=BetOutcome.UNDECIDED.value
+        )
         # Excluded: fixture not finished, and an already-settled bet on a finished fixture.
         make_bet(db, user=user, fixture=upcoming, outcome=BetOutcome.UNDECIDED.value)
         make_bet(db, user=user, fixture=played, outcome=BetOutcome.WON.value)
@@ -137,10 +172,14 @@ class TestFetchFilters:
         result = fetch_bets_to_settle(db)
         assert [b.id for b in result] == [target.id]
 
-    def test_voided_bets_to_settle_only_undecided_on_voided_fixtures(self, db: Session) -> None:
+    def test_voided_bets_to_settle_only_undecided_on_voided_fixtures(
+        self, db: Session
+    ) -> None:
         user = make_user(db)
         voided = make_fixture(db, status="PST")
-        target = make_bet(db, user=user, fixture=voided, outcome=BetOutcome.UNDECIDED.value)
+        target = make_bet(
+            db, user=user, fixture=voided, outcome=BetOutcome.UNDECIDED.value
+        )
         make_bet(db, user=user, fixture=voided, outcome=BetOutcome.VOIDED.value)
 
         result = fetch_voided_bets_to_settle(db)
@@ -155,7 +194,13 @@ class TestRunJobsDueGate:
     def _settleable_bet(self, db: Session) -> Bet:
         user = make_user(db, balance=Decimal("90.00"))
         fixture = make_fixture(db, status="FT", home_goals=2, away_goals=1)
-        return make_bet(db, user=user, fixture=fixture, choice=FixtureResult.HOME, returns=Decimal("35.00"))
+        return make_bet(
+            db,
+            user=user,
+            fixture=fixture,
+            choice=FixtureResult.HOME,
+            returns=Decimal("35.00"),
+        )
 
     def test_due_job_runs_and_stamps_last_run_at(self, db: Session) -> None:
         self._seed(db, enabled=True, min_interval_seconds=300, last_run_at=None)
@@ -201,7 +246,13 @@ class TestSettlementJobsThroughRegistry:
 
         user = make_user(db, balance=Decimal("90.00"))
         fixture = make_fixture(db, status="FT", home_goals=1, away_goals=1)
-        bet = make_bet(db, user=user, fixture=fixture, choice=FixtureResult.DRAW, returns=Decimal("40.00"))
+        bet = make_bet(
+            db,
+            user=user,
+            fixture=fixture,
+            choice=FixtureResult.DRAW,
+            returns=Decimal("40.00"),
+        )
 
         run_settle_bets(db)
 
