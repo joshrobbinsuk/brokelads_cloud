@@ -40,14 +40,19 @@ API will be available at `http://localhost:8000`
 
 ## Type Checking and Tests
 
-Run mypy inside the running container:
+Tests run against in-memory SQLite (no Postgres needed). `src/tests/` has
+`unit_tests/` (model properties and validators) and `integration_tests/`
+(bet creation and settlement). Run from `api/` in a Python 3.12 env with
+`requirements.txt` installed:
+
 ```bash
-docker exec -w /app -it bl-api mypy --config-file /app/mypy.ini src
+pytest                            # full suite
+mypy --config-file mypy.ini       # type check
 ```
 
-Run pytest locally (from `bl/api` on your host machine):
+CI uses pip on 3.12; mypy can also run inside the container:
 ```bash
-pytest
+docker exec -w /app -it bl-api mypy --config-file /app/mypy.ini src
 ```
 
 ## Database Migrations
@@ -81,5 +86,7 @@ docker run -p 8000:8000 -e DATABASE_URL="postgresql://..." bl-api
 
 ## API Endpoints
 
-- `GET /` - Root endpoint
-- `GET /health` - Health check endpoint
+- `GET /health` - Health check
+- `GET /client/fixture`, `POST /client/bet`, `GET /client/bet`, `GET /client/me` - client API (Cognito-authed)
+- `POST /rapid-api/run-jobs` - runs due ingestion/settlement jobs (requires `X-Cron-Auth-Key`)
+- `/admin` - SQLAdmin UI (Google OAuth); `GET /auth/google` is the OAuth callback

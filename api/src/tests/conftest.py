@@ -1,83 +1,31 @@
-# import json
-# import os
-# import pytest
-# from fastapi.testclient import TestClient
-# from sqlalchemy import create_engine
-# from sqlalchemy.orm import sessionmaker
-# from sqlalchemy.pool import StaticPool
+import os
 
-# from ..main import app
-# from ..database import get_db, BaseModel as Base
+# database.py raises at import time if DATABASE_URL is unset. Tests run against
+# their own in-memory SQLite engine (see the `db` fixture), so any value works.
+os.environ.setdefault("DATABASE_URL", "sqlite://")
 
+from typing import Iterator
 
-# @pytest.fixture(scope="session")
-# def engine():
-#     return create_engine(
-#         "sqlite+pysqlite://",
-#         connect_args={"check_same_thread": False},
-#         poolclass=StaticPool,
-#     )
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from src import models  # noqa: F401  (registers tables on BaseModel.metadata)
+from src.database import BaseModel
 
 
-# @pytest.fixture(scope="session", autouse=True)
-# def schema(engine):
-#     Base.metadata.create_all(bind=engine)
-#     yield
-#     Base.metadata.drop_all(bind=engine)
-
-
-# @pytest.fixture()
-# def db(engine):
-#     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-#     session = SessionLocal()
-#     try:
-#         yield session
-#     finally:
-#         session.rollback()
-#         session.close()
-
-
-# @pytest.fixture()
-# def client(db):
-#     def override_get_db():
-#         yield db
-
-#     app.dependency_overrides[get_db] = override_get_db
-#     with TestClient(app) as c:
-#         yield c
-#     app.dependency_overrides.clear()
-
-
-# @pytest.fixture()
-# def rapid_api_fixtures_payload():
-#     path = os.path.join(
-#         os.path.dirname(__file__), "fixtures", "rapid_api_fixtures.json"
-#     )
-#     with open(path, "r", encoding="utf-8") as f:
-#         return json.load(f)
-
-
-# class DummyResponse:
-#     def __init__(self, payload, status_code=200):
-#         self._payload = payload
-#         self.status_code = status_code
-
-#     def json(self):
-#         return self._payload
-
-#     def raise_for_status(self):
-#         if self.status_code >= 400:
-#             import requests
-
-#             raise requests.HTTPError(f"{self.status_code} error")
-
-
-# @pytest.fixture()
-# def mock_requests_get(monkeypatch, rapid_api_fixtures_payload):
-#     import src.rapid_api.external_calls as external_calls
-
-#     def _mock_get(url, headers=None, **kwargs):
-#         return DummyResponse(rapid_api_fixtures_payload, status_code=200)
-
-#     monkeypatch.setattr(external_calls.requests, "get", _mock_get)
-#     return _mock_get
+@pytest.fixture()
+def db() -> Iterator[Session]:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    BaseModel.metadata.create_all(bind=engine)
+    session = sessionmaker(bind=engine, autocommit=False, autoflush=False)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
