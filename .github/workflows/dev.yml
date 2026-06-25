@@ -13,6 +13,7 @@ jobs:
     env:
       TF_VAR_image_tag: ${{ github.sha }}
       TF_VAR_rapid_api_key: ${{ secrets.RAPID_API_KEY }}
+      TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
       TF_VAR_admin_session_secret: ${{ secrets.ADMIN_SESSION_SECRET }}
       TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
       TF_VAR_vercel_api_token: ${{ secrets.VERCEL_API_TOKEN }}

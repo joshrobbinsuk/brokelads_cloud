@@ -7,12 +7,15 @@ os.environ.setdefault("DATABASE_URL", "sqlite://")
 from typing import Iterator
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src import models  # noqa: F401  (registers tables on BaseModel.metadata)
-from src.database import BaseModel
+from src.database import BaseModel, get_db
+from src.client.routes import router as client_router
 
 
 @pytest.fixture()
@@ -29,3 +32,17 @@ def db() -> Iterator[Session]:
     finally:
         session.close()
         engine.dispose()
+
+
+@pytest.fixture()
+def app(db: Session) -> FastAPI:
+    test_app = FastAPI()
+    test_app.include_router(client_router)
+    test_app.dependency_overrides[get_db] = lambda: db
+    return test_app
+
+
+@pytest.fixture()
+def client(app: FastAPI) -> Iterator[TestClient]:
+    with TestClient(app) as test_client:
+        yield test_client

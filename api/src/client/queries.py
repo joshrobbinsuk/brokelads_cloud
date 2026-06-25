@@ -15,7 +15,11 @@ from ..models import (
     UserStatus,
 )
 from ..utils.logging import logger
-from ..settings import NOT_STARTED_STATUSES
+from ..settings import (
+    NOT_STARTED_STATUSES,
+    CLIENT_FIXTURE_LIMIT,
+    PUNDIT_RECENT_BET_LIMIT,
+)
 
 
 class ClientSideError(Exception):
@@ -61,7 +65,9 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
 
 
 def fetch_non_started_fixtures_with_odds(
-    db: Session, search: str | None = None
+    db: Session,
+    search: str | None = None,
+    limit: int = CLIENT_FIXTURE_LIMIT,
 ) -> list[Fixture]:
 
     try:
@@ -82,9 +88,46 @@ def fetch_non_started_fixtures_with_odds(
                 )
             )
 
-        return query.order_by(Fixture.kick_off.asc()).limit(30).all()
+        return query.order_by(Fixture.kick_off.asc()).limit(limit).all()
     except Exception:
         logger.exception("Error fetching non-started fixtures with odds")
+        raise
+
+
+def fetch_visible_fixture_slate_by_ids(
+    db: Session, fixture_ids: Sequence[str]
+) -> list[Fixture]:
+    """Of the requested ids, return only those in the current visible slate
+    (not-started, all three odds present, within CLIENT_FIXTURE_LIMIT), in
+    request order with duplicates removed."""
+    try:
+        visible = fetch_non_started_fixtures_with_odds(db)
+        by_id = {fixture.id: fixture for fixture in visible}
+
+        ordered: list[Fixture] = []
+        seen: set[str] = set()
+        for fixture_id in fixture_ids:
+            if fixture_id in seen:
+                continue
+            seen.add(fixture_id)
+            fixture = by_id.get(fixture_id)
+            if fixture is not None:
+                ordered.append(fixture)
+        return ordered
+    except Exception:
+        logger.exception("Error fetching visible fixture slate by ids")
+        raise
+
+
+def get_recent_user_bets_for_pundit(
+    db: Session,
+    user_id: str,
+    limit: int = PUNDIT_RECENT_BET_LIMIT,
+) -> Sequence[RowMapping]:
+    try:
+        return get_user_bets(db, user_id, limit=limit)
+    except Exception:
+        logger.exception(f"Error fetching recent bets for pundit, user {user_id}")
         raise
 
 
