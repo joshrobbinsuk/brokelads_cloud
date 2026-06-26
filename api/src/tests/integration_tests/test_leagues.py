@@ -13,6 +13,7 @@ from src.rapid_api import jobs as jobs_module
 from src.rapid_api.internal_queries import (
     count_non_started_fixtures_by_league,
     get_active_leagues,
+    save_new_fixtures,
     upsert_leagues,
 )
 from src.rapid_api.jobs import run_fetch_fixtures
@@ -84,6 +85,47 @@ class TestUpsertLeagues:
     def test_empty_input_is_a_noop(self, db: Session) -> None:
         upsert_leagues(db, [])
         assert db.query(League).count() == 0
+
+
+class TestSaveNewFixturesBackfill:
+    def test_backfills_league_id_on_existing_leagueless_row_no_duplicate(
+        self, db: Session
+    ) -> None:
+        league = make_league(db, rapid_api_id=39)
+        # Pre-existing row (rapid_api_id=1 per factory) with no league yet.
+        existing = make_fixture(db, status="NS", league_id=None)
+        assert existing.rapid_api_id == 1
+
+        save_new_fixtures(db, [_fixture_schema(1)], league_id=league.id)
+
+        db.refresh(existing)
+        assert existing.league_id == league.id
+        # Healed in place — exactly one row for rapid_api_id 1, no duplicate.
+        assert db.query(Fixture).filter_by(rapid_api_id=1).count() == 1
+
+    def test_does_not_overwrite_an_already_set_league_id(self, db: Session) -> None:
+        original = make_league(db, rapid_api_id=39)
+        other = make_league(db, rapid_api_id=140, name="La Liga")
+        existing = make_fixture(db, status="NS", league_id=original.id)
+
+        save_new_fixtures(db, [_fixture_schema(1)], league_id=other.id)
+
+        db.refresh(existing)
+        assert existing.league_id == original.id
+
+    def test_inserts_new_and_backfills_existing_in_one_call(self, db: Session) -> None:
+        league = make_league(db, rapid_api_id=39)
+        existing = make_fixture(db, status="NS", league_id=None)  # rapid_api_id=1
+
+        save_new_fixtures(
+            db, [_fixture_schema(1), _fixture_schema(2)], league_id=league.id
+        )
+
+        db.refresh(existing)
+        assert existing.league_id == league.id
+        assert db.query(Fixture).count() == 2
+        new_row = db.query(Fixture).filter_by(rapid_api_id=2).one()
+        assert new_row.league_id == league.id
 
 
 class TestRunFetchFixturesPerLeague:

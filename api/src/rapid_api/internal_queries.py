@@ -121,9 +121,15 @@ def save_new_fixtures(
             return
 
         new_fixtures = []
+        backfilled = 0
         for f in fixtures:
             existing = db.query(Fixture).filter_by(rapid_api_id=f.info.id).first()
             if existing:
+                # Heal pre-existing leagueless rows in place so there is exactly
+                # one row per match and old fixtures gain their league.
+                if existing.league_id is None and league_id is not None:
+                    existing.league_id = league_id
+                    backfilled += 1
                 continue
             new_fixtures.append(f)
 
@@ -131,6 +137,9 @@ def save_new_fixtures(
         if rows:
             logger.info(f"Saving {len(rows)} new fixtures to the database.")
             db.execute(insert(Fixture), rows)
+
+        if rows or backfilled:
+            logger.info(f"Backfilled league_id on {backfilled} existing fixtures.")
             db.commit()
         else:
             logger.info("No new fixtures to save.")

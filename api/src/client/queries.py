@@ -86,6 +86,7 @@ def fetch_non_started_fixtures_with_odds(
             .options(joinedload(Fixture.league))
             .filter(
                 Fixture.status.in_(NOT_STARTED_STATUSES),
+                Fixture.league_id.isnot(None),
                 Fixture.home_odds.isnot(None),
                 Fixture.away_odds.isnot(None),
                 Fixture.draw_odds.isnot(None),

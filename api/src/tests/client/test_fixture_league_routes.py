@@ -44,10 +44,17 @@ class TestGetFixtures:
         assert fixture["home_odds"] == "2.00"
         assert isinstance(fixture["away_odds"], str)
 
-    def test_null_league_when_unlinked(self, client: TestClient, db: Session) -> None:
-        make_fixture(db, status="NS", league_id=None)
+    def test_leagueless_fixtures_are_hidden(
+        self, client: TestClient, db: Session
+    ) -> None:
+        league = make_league(db, rapid_api_id=39, name="EPL")
+        make_fixture(db, status="NS", league_id=league.id)
+        make_fixture(db, status="NS", league_id=None)  # hidden from the board
+
         body = client.get("/client/fixture").json()
-        assert body["fixtures"][0]["league"] is None
+
+        assert len(body["fixtures"]) == 1
+        assert body["fixtures"][0]["league"]["id"] == league.id
 
     def test_league_id_filter(self, client: TestClient, db: Session) -> None:
         epl = make_league(db, rapid_api_id=39, name="EPL")

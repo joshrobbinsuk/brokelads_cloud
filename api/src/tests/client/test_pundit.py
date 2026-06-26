@@ -28,7 +28,7 @@ from src.client.pundit import (
     is_email_allowed,
     stream_pundit_response,
 )
-from src.tests.factories import make_bet, make_fixture, make_user
+from src.tests.factories import make_bet, make_fixture, make_league, make_user
 
 
 def _parse_sse(body: str) -> list[tuple[str, str]]:
@@ -110,7 +110,7 @@ def test_streams_expected_sse_contract(
 ) -> None:
     user = make_user(db)
     _override_user(app, user)
-    fixture = make_fixture(db, status="NS")
+    fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
     _inject_fake_stream(monkeypatch, ["Hello ", "world"])
 
     resp = client.post(
@@ -178,7 +178,7 @@ def test_allowlisted_email_streams(
     # Allowlist holds a differently-cased address to prove normalization.
     monkeypatch.setattr(settings, "PUNDIT_ALLOWED_EMAILS", "approved@test.com, x@y.com")
     _override_user(app, user)
-    fixture = make_fixture(db, status="NS")
+    fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
     _inject_fake_stream(monkeypatch, ["Hi"])
 
     resp = client.post(
@@ -251,11 +251,18 @@ def test_context_serializes_money_as_strings(db: Session) -> None:
 
 class TestFetchVisibleFixtureSlateByIds:
     def test_preserves_request_order_and_dedupes(self, db: Session) -> None:
+        league = make_league(db)
         first = make_fixture(
-            db, status="NS", kick_off=datetime.now(timezone.utc) + timedelta(days=2)
+            db,
+            status="NS",
+            league_id=league.id,
+            kick_off=datetime.now(timezone.utc) + timedelta(days=2),
         )
         second = make_fixture(
-            db, status="NS", kick_off=datetime.now(timezone.utc) + timedelta(days=1)
+            db,
+            status="NS",
+            league_id=league.id,
+            kick_off=datetime.now(timezone.utc) + timedelta(days=1),
         )
 
         result = fetch_visible_fixture_slate_by_ids(
@@ -264,7 +271,7 @@ class TestFetchVisibleFixtureSlateByIds:
         assert [fixture.id for fixture in result] == [second.id, first.id]
 
     def test_drops_out_of_slate_ids(self, db: Session) -> None:
-        visible = make_fixture(db, status="NS")
+        visible = make_fixture(db, status="NS", league_id=make_league(db).id)
         finished = make_fixture(db, status="FT", home_goals=1, away_goals=0)
 
         result = fetch_visible_fixture_slate_by_ids(
