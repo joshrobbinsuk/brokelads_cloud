@@ -70,6 +70,12 @@ class League(BaseModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    logo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_fixture_fetch_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def __str__(self) -> str:
         return self.name
@@ -91,7 +97,11 @@ class Fixture(BaseModel):
     draw_odds: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     home_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_goals: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    league_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("league.id"), nullable=True
+    )
 
+    league: Mapped["League | None"] = relationship("League")
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="fixture")
 
     def __str__(self) -> str:

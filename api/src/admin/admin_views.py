@@ -8,12 +8,16 @@ class UserAdmin(ModelView, model=User):
 
 
 class LeagueAdmin(ModelView, model=League):
-    column_list = ["name", "active"]
+    column_list = ["name", "country", "type", "active"]
+    column_searchable_list = ["name", "country"]
+    column_sortable_list = ["name", "country", "type", "active"]
+    can_edit = True
 
 
 class FixtureAdmin(ModelView, model=Fixture):
-    column_list = ["home_team", "away_team", "status", "kick_off"]
+    column_list = ["home_team", "away_team", "league", "status", "kick_off"]
     column_sortable_list = ["kick_off"]
+    column_searchable_list = ["status"]
 
 
 class BetAdmin(ModelView, model=Bet):

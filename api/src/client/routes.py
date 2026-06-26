@@ -23,12 +23,13 @@ from ..models import User, BetOutcome
 from .queries import (
     fetch_non_started_fixtures_with_odds,
     fetch_visible_fixture_slate_by_ids,
+    get_active_leagues,
     get_recent_user_bets_for_pundit,
     create_bet,
     get_user_bets,
     ClientSideError,
 )
-from .schemas import CreateBetRequest
+from .schemas import CreateBetRequest, FixtureResponse, LeagueOut
 from .pundit_schemas import AskPunditRequest
 from .pundit import build_pundit_context, is_email_allowed, stream_pundit_response
 
@@ -38,11 +39,45 @@ router = APIRouter(prefix="/client", tags=["client"])
 @router.get("/fixture")
 async def get_fixtures(
     search: str | None = None,
+    league_id: str | None = None,
     db: Session = Depends(get_db),
     _claims: dict[str, Any] = Depends(verify_token),
 ) -> dict[str, Any]:
-    fixtures = fetch_non_started_fixtures_with_odds(db, search)
-    return {"fixtures": jsonable_encoder(fixtures)}
+    try:
+        fixtures = fetch_non_started_fixtures_with_odds(db, search, league_id)
+        return {
+            "fixtures": [
+                FixtureResponse.model_validate(fixture).model_dump(mode="json")
+                for fixture in fixtures
+            ]
+        }
+    except Exception:
+        logger.exception("Error fetching fixtures")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching fixtures",
+        )
+
+
+@router.get("/league")
+async def get_leagues(
+    db: Session = Depends(get_db),
+    _claims: dict[str, Any] = Depends(verify_token),
+) -> dict[str, Any]:
+    try:
+        leagues = get_active_leagues(db)
+        return {
+            "leagues": [
+                LeagueOut.model_validate(league).model_dump(mode="json")
+                for league in leagues
+            ]
+        }
+    except Exception:
+        logger.exception("Error fetching leagues")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching leagues",
+        )
 
 
 @router.post("/bet", status_code=http_status.HTTP_201_CREATED)

@@ -2,12 +2,13 @@ from decimal import Decimal
 from typing import Sequence
 
 from sqlalchemy.engine import RowMapping
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, or_
 
 from ..models import (
     Bet,
     Fixture,
+    League,
     User,
     FixtureResult,
     TransactionRecord,
@@ -64,19 +65,35 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
         raise
 
 
+def get_active_leagues(db: Session) -> list[League]:
+    try:
+        return db.query(League).filter(League.active.is_(True)).all()
+    except Exception:
+        logger.exception("Error fetching active leagues")
+        raise
+
+
 def fetch_non_started_fixtures_with_odds(
     db: Session,
     search: str | None = None,
+    league_id: str | None = None,
     limit: int = CLIENT_FIXTURE_LIMIT,
 ) -> list[Fixture]:
 
     try:
-        query = db.query(Fixture).filter(
-            Fixture.status.in_(NOT_STARTED_STATUSES),
-            Fixture.home_odds.isnot(None),
-            Fixture.away_odds.isnot(None),
-            Fixture.draw_odds.isnot(None),
+        query = (
+            db.query(Fixture)
+            .options(joinedload(Fixture.league))
+            .filter(
+                Fixture.status.in_(NOT_STARTED_STATUSES),
+                Fixture.home_odds.isnot(None),
+                Fixture.away_odds.isnot(None),
+                Fixture.draw_odds.isnot(None),
+            )
         )
+
+        if league_id:
+            query = query.filter(Fixture.league_id == league_id)
 
         if search:
             pattern = f"%{search}%"

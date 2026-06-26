@@ -1,16 +1,23 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from ..utils.logging import logger
-from ..settings import N_NOT_STARTED_FIXTURES_TO_STORE
+from ..settings import (
+    N_FIXTURES_PER_LEAGUE,
+    LEAGUE_FIXTURE_FETCH_COOLDOWN_SECONDS,
+)
 
 from .external_calls import (
+    fetch_leagues,
     fetch_fixtures_by_league,
     fetch_odds_by_fixture,
     fetch_fixture_updates,
 )
 from .internal_queries import (
-    get_active_league_rapid_id,
-    fetch_non_started_fixtures,
+    get_active_leagues,
+    count_non_started_fixtures_by_league,
+    upsert_leagues,
     fetch_non_finished_fixtures,
     save_new_fixtures,
     fetch_fixtures_missing_odds,
@@ -22,19 +29,42 @@ from .internal_queries import (
 )
 
 
+def run_fetch_leagues(db: Session) -> None:
+    upsert_leagues(db, fetch_leagues())
+
+
 def run_fetch_fixtures(db: Session) -> None:
-    league_id = get_active_league_rapid_id(db)
-    if not league_id:
-        logger.warning("No active league found. Skipping fixture fetch.")
+    leagues = get_active_leagues(db)
+    if not leagues:
+        logger.warning("No active leagues found. Skipping fixture fetch.")
         return
-    not_started_fixtures = fetch_non_started_fixtures(db)
-    if N_NOT_STARTED_FIXTURES_TO_STORE - len(not_started_fixtures) > 0:
+
+    now = datetime.now(timezone.utc)
+    for league in leagues:
+        count = count_non_started_fixtures_by_league(db, league.id)
+        if count >= N_FIXTURES_PER_LEAGUE:
+            logger.info(f"League {league.name} at target ({count}). Skipping fetch.")
+            continue
+
+        last_fetch = league.last_fixture_fetch_at
+        # SQLite (test engine) drops tzinfo on round-trip; treat a naive value
+        # as UTC so the cooldown arithmetic below never compares aware vs naive.
+        if last_fetch is not None and last_fetch.tzinfo is None:
+            last_fetch = last_fetch.replace(tzinfo=timezone.utc)
+        if last_fetch is not None and (
+            (now - last_fetch).total_seconds() < LEAGUE_FIXTURE_FETCH_COOLDOWN_SECONDS
+        ):
+            logger.info(
+                f"League {league.name} fetched within cooldown. Skipping fetch."
+            )
+            continue
+
         fixtures = fetch_fixtures_by_league(
-            league_id=league_id, next=N_NOT_STARTED_FIXTURES_TO_STORE
+            league_id=league.rapid_api_id, next=N_FIXTURES_PER_LEAGUE
         )
-        save_new_fixtures(db, fixtures)
-    else:
-        logger.info("Sufficient non-started fixtures in DB. Skipping fetch.")
+        save_new_fixtures(db, fixtures, league_id=league.id)
+        league.last_fixture_fetch_at = now
+        db.commit()
 
 
 def run_fetch_odds(db: Session) -> None:
@@ -84,6 +114,7 @@ def run_settle_voided_bets(db: Session) -> None:
 
 
 JOB_REGISTRY = {
+    "fetch_leagues": run_fetch_leagues,
     "fetch_fixtures": run_fetch_fixtures,
     "fetch_odds": run_fetch_odds,
     "fetch_fixture_updates": run_fetch_fixture_updates,
