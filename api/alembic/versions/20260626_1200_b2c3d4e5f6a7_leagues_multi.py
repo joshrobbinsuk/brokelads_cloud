@@ -1,4 +1,8 @@
-"""leagues metadata, fixture league fk, reset fixtures/bets, seed fetch_leagues
+"""leagues metadata, fixture league fk, seed fetch_leagues
+
+Additive only — no data wipe. Old fixtures keep a NULL league_id and are
+backfilled in place by ingestion (save_new_fixtures) once their league is
+ticked active; the client query hides leagueless fixtures meanwhile.
 
 Revision ID: b2c3d4e5f6a7
 Revises: f7df2ed679dc
@@ -38,11 +42,6 @@ def upgrade() -> None:
         ["league_id"],
         ["id"],
     )
-
-    # Reset the board: bets reference fixtures, so clear bets first. The admin
-    # re-ticks active leagues post-deploy; fixtures repopulate from ingestion.
-    op.execute(sa.text("DELETE FROM bet"))
-    op.execute(sa.text("DELETE FROM fixture"))
 
     job_control = sa.table(
         "job_control",

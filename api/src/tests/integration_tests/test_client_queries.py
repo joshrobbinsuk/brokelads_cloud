@@ -1,6 +1,5 @@
 """User provisioning and the user-facing read queries (client.queries)."""
 
-
 import pytest
 from sqlalchemy.orm import Session
 
@@ -11,7 +10,7 @@ from src.client.queries import (
     get_or_create_user,
     get_user_bets,
 )
-from src.tests.factories import make_bet, make_fixture, make_user
+from src.tests.factories import make_bet, make_fixture, make_league, make_user
 
 
 class TestGetOrCreateUser:
@@ -41,20 +40,28 @@ class TestGetOrCreateUser:
 
 class TestFetchNonStartedFixturesWithOdds:
     def test_returns_not_started_with_complete_odds(self, db: Session) -> None:
-        make_fixture(db, status="NS")  # has odds by default
+        league = make_league(db)
+        make_fixture(db, status="NS", league_id=league.id)  # has odds by default
         result = fetch_non_started_fixtures_with_odds(db)
         assert len(result) == 1
 
     def test_excludes_started_fixtures(self, db: Session) -> None:
-        make_fixture(db, status="FT", home_goals=1, away_goals=0)
+        league = make_league(db)
+        make_fixture(db, status="FT", home_goals=1, away_goals=0, league_id=league.id)
         assert fetch_non_started_fixtures_with_odds(db) == []
 
     def test_excludes_fixtures_missing_any_odd(self, db: Session) -> None:
-        make_fixture(db, status="NS", draw_odds=None)
+        league = make_league(db)
+        make_fixture(db, status="NS", draw_odds=None, league_id=league.id)
+        assert fetch_non_started_fixtures_with_odds(db) == []
+
+    def test_excludes_leagueless_fixtures(self, db: Session) -> None:
+        make_fixture(db, status="NS", league_id=None)
         assert fetch_non_started_fixtures_with_odds(db) == []
 
     def test_search_matches_team_name(self, db: Session) -> None:
-        make_fixture(db, status="NS")  # Home FC v Away FC
+        league = make_league(db)
+        make_fixture(db, status="NS", league_id=league.id)  # Home FC v Away FC
         result = fetch_non_started_fixtures_with_odds(db, search="home")
         assert len(result) == 1
         assert fetch_non_started_fixtures_with_odds(db, search="nomatch") == []

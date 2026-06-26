@@ -28,7 +28,13 @@ def fetch_leagues() -> list[League]:
                 f"Error fetching leagues: {response.status_code} - {response.text}"
             )
         leagues = RapidApiLeaguesResponse(**response.json()).data
-        logger.info(f"Fetched {len(leagues)} leagues")
+        if not leagues:
+            logger.warning(
+                "fetch_leagues returned 0 leagues — possible API/auth/shape "
+                "issue masquerading as a no-op."
+            )
+        else:
+            logger.info(f"Fetched {len(leagues)} leagues")
         return leagues
     except Exception:
         logger.exception("Exception in fetch_leagues")
