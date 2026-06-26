@@ -25,7 +25,10 @@ from src.rapid_api.internal_queries import (
 )
 from src.rapid_api.jobs import run_settle_voided_bets
 from src.rapid_api.runner import run_jobs
-from src.rapid_api.schemas.fixture import Fixture as FixtureSchema
+from src.rapid_api.schemas.fixture import (
+    Fixture as FixtureSchema,
+    RapidApiFixturesResponse,
+)
 from src.rapid_api.schemas.odds import Odds as OddsSchema
 from src.tests.factories import make_bet, make_fixture, make_user
 
@@ -83,6 +86,33 @@ class TestSaveNewFixtures:
     def test_empty_input_is_a_noop(self, db: Session) -> None:
         save_new_fixtures(db, [])
         assert db.query(Fixture).count() == 0
+
+    def test_null_venue_parses_and_saves(self, db: Session) -> None:
+        # Regression: API-Football returns venue.name = null for fixtures with no
+        # assigned venue (future/international). The whole batch must still parse
+        # and the fixture must save with venue=None — not fail the entire fetch.
+        payload = {
+            "response": [
+                {
+                    "fixture": {
+                        "id": 7,
+                        "timestamp": 1893456000,
+                        "venue": {"name": None},
+                        "status": {"short": "NS"},
+                    },
+                    "teams": {
+                        "home": {"name": "Home FC", "logo": "h.png"},
+                        "away": {"name": "Away FC", "logo": "a.png"},
+                    },
+                }
+            ]
+        }
+        parsed = RapidApiFixturesResponse.model_validate(payload).data  # must not raise
+
+        save_new_fixtures(db, parsed)
+
+        saved = db.query(Fixture).filter_by(rapid_api_id=7).one()
+        assert saved.venue is None
 
 
 class TestUpdateFixtures:

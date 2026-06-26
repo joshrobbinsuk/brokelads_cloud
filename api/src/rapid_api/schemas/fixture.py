@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class Venue(BaseModel):
-    name: str
+    name: str | None = None
 
 
 class StatusModel(BaseModel):
@@ -15,7 +15,7 @@ class StatusModel(BaseModel):
 class Info(BaseModel):
     id: int
     timestamp: int
-    venue: Venue
+    venue: Venue | None = None
     status: StatusModel
 
 
@@ -46,7 +46,7 @@ class Fixture(BaseModel):
             "rapid_api_id": self.info.id,
             "kick_off": datetime.fromtimestamp(self.info.timestamp, tz=timezone.utc),
             "status": self.info.status.short,
-            "venue": self.info.venue.name,
+            "venue": self.info.venue.name if self.info.venue else None,
             "home_team": self.teams.home.name,
             "home_team_logo": self.teams.home.logo,
             "away_team": self.teams.away.name,
@@ -82,7 +82,7 @@ class UpdateFixture(BaseModel):
             "rapid_api_id": self.info.id,
             "kick_off": datetime.fromtimestamp(self.info.timestamp, tz=timezone.utc),
             "status": self.info.status.short,
-            "venue": self.info.venue.name,
+            "venue": self.info.venue.name if self.info.venue else None,
             "home_goals": self.goals.home,
             "away_goals": self.goals.away,
         }

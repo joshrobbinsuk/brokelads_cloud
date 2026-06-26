@@ -87,7 +87,7 @@ class Fixture(BaseModel):
     status: Mapped[str] = mapped_column(String(5), nullable=False)
     rapid_api_id: Mapped[int] = mapped_column(Integer, nullable=False)
     kick_off: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    venue: Mapped[str] = mapped_column(String(255), nullable=False)
+    venue: Mapped[str | None] = mapped_column(String(255), nullable=True)
     home_team: Mapped[str] = mapped_column(String(255), nullable=False)
     home_team_logo: Mapped[str] = mapped_column(String(255), nullable=False)
     away_team: Mapped[str] = mapped_column(String(255), nullable=False)
