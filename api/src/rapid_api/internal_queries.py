@@ -25,15 +25,66 @@ from .schemas.fixture import (
     Fixture as FixtureSchema,
     UpdateFixture as UpdateFixtureSchema,
 )
+from .schemas.league import League as LeagueSchema
 from .schemas.odds import Odds as OddsSchema
 
 
-def get_active_league_rapid_id(db: Session) -> int | None:
+def get_active_leagues(db: Session) -> list[League]:
     try:
-        league = db.query(League).filter(League.active.is_(True)).first()
-        return league.rapid_api_id if league else None
+        return db.query(League).filter(League.active.is_(True)).all()
     except Exception:
-        logger.exception("Error fetching active league")
+        logger.exception("Error fetching active leagues")
+        raise
+
+
+def count_non_started_fixtures_by_league(db: Session, league_id: str) -> int:
+    try:
+        return (
+            db.query(Fixture)
+            .filter(
+                Fixture.league_id == league_id,
+                Fixture.status.in_(NOT_STARTED_STATUSES),
+            )
+            .count()
+        )
+    except Exception:
+        logger.exception("Error counting non-started fixtures by league")
+        raise
+
+
+def upsert_leagues(db: Session, leagues: list[LeagueSchema]) -> None:
+    try:
+        if not leagues:
+            return
+
+        existing_by_rapid_id = {
+            league.rapid_api_id: league for league in db.query(League).all()
+        }
+
+        new_rows = []
+        for league in leagues:
+            row = league.to_db_dict()
+            existing = existing_by_rapid_id.get(row["rapid_api_id"])
+            if existing:
+                # Refresh metadata only — never touch `active` so admin toggles
+                # survive in-place deploys.
+                existing.name = row["name"]
+                existing.type = row["type"]
+                existing.logo = row["logo"]
+                existing.country = row["country"]
+            else:
+                new_rows.append({**row, "active": False})
+
+        if new_rows:
+            db.execute(insert(League), new_rows)
+        db.commit()
+        logger.info(
+            f"Upserted leagues: {len(new_rows)} inserted, "
+            f"{len(leagues) - len(new_rows)} refreshed."
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Error upserting leagues")
         raise
 
 
@@ -62,7 +113,9 @@ def fetch_non_finished_fixtures(db: Session) -> list[Fixture]:
         raise
 
 
-def save_new_fixtures(db: Session, fixtures: list[FixtureSchema]) -> None:
+def save_new_fixtures(
+    db: Session, fixtures: list[FixtureSchema], league_id: str | None = None
+) -> None:
     try:
         if not fixtures:
             return
@@ -74,7 +127,7 @@ def save_new_fixtures(db: Session, fixtures: list[FixtureSchema]) -> None:
                 continue
             new_fixtures.append(f)
 
-        rows = [f.to_db_dict() for f in new_fixtures]
+        rows = [{**f.to_db_dict(), "league_id": league_id} for f in new_fixtures]
         if rows:
             logger.info(f"Saving {len(rows)} new fixtures to the database.")
             db.execute(insert(Fixture), rows)

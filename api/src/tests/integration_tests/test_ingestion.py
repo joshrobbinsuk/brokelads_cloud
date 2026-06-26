@@ -14,14 +14,12 @@ from src.models import (
     Fixture,
     FixtureResult,
     JobControl,
-    League,
 )
 from src.rapid_api.internal_queries import (
     fetch_bets_to_settle,
     fetch_fixtures_missing_odds,
     fetch_non_started_fixtures,
     fetch_voided_bets_to_settle,
-    get_active_league_rapid_id,
     save_new_fixtures,
     update_fixtures,
 )
@@ -117,25 +115,6 @@ class TestUpdateFixtures:
 
 
 class TestFetchFilters:
-    def test_get_active_league_returns_rapid_id(self, db: Session) -> None:
-        db.add(
-            League(
-                rapid_api_id=39, name="EPL", display_name="Premier League", active=True
-            )
-        )
-        db.add(
-            League(
-                rapid_api_id=140, name="LaLiga", display_name="La Liga", active=False
-            )
-        )
-        db.commit()
-        assert get_active_league_rapid_id(db) == 39
-
-    def test_get_active_league_none_when_no_active(self, db: Session) -> None:
-        db.add(League(rapid_api_id=39, name="EPL", display_name="EPL", active=False))
-        db.commit()
-        assert get_active_league_rapid_id(db) is None
-
     def test_non_started_fixtures_excludes_finished(self, db: Session) -> None:
         make_fixture(db, status="NS")
         make_fixture(db, status="FT", home_goals=1, away_goals=0)

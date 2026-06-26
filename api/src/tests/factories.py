@@ -6,7 +6,15 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from src.models import Bet, BetOutcome, Fixture, FixtureResult, User, UserStatus
+from src.models import (
+    Bet,
+    BetOutcome,
+    Fixture,
+    FixtureResult,
+    League,
+    User,
+    UserStatus,
+)
 
 
 def make_user(
@@ -17,13 +25,39 @@ def make_user(
     cognito_uuid: str = "cognito-1",
     status: str = UserStatus.ACTIVE.value,
 ) -> User:
-    user = User(
-        email=email, cognito_uuid=cognito_uuid, balance=balance, status=status
-    )
+    user = User(email=email, cognito_uuid=cognito_uuid, balance=balance, status=status)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
+
+
+def make_league(
+    db: Session,
+    *,
+    rapid_api_id: int = 39,
+    name: str = "Premier League",
+    display_name: str | None = None,
+    active: bool = True,
+    logo: str | None = "league.png",
+    country: str | None = "England",
+    type: str | None = "League",
+    last_fixture_fetch_at: datetime | None = None,
+) -> League:
+    league = League(
+        rapid_api_id=rapid_api_id,
+        name=name,
+        display_name=display_name or name,
+        active=active,
+        logo=logo,
+        country=country,
+        type=type,
+        last_fixture_fetch_at=last_fixture_fetch_at,
+    )
+    db.add(league)
+    db.commit()
+    db.refresh(league)
+    return league
 
 
 def make_fixture(
@@ -36,6 +70,7 @@ def make_fixture(
     home_goals: int | None = None,
     away_goals: int | None = None,
     kick_off: datetime | None = None,
+    league_id: str | None = None,
 ) -> Fixture:
     fixture = Fixture(
         status=status,
@@ -51,6 +86,7 @@ def make_fixture(
         draw_odds=draw_odds,
         home_goals=home_goals,
         away_goals=away_goals,
+        league_id=league_id,
     )
     db.add(fixture)
     db.commit()

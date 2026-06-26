@@ -7,6 +7,7 @@ from .schemas.fixture import (
     Fixture,
     UpdateFixture,
 )
+from .schemas.league import League, RapidApiLeaguesResponse
 from .schemas.odds import RapidApiOddsResponse, Odds
 from ..settings import RAPID_API_KEY
 from ..utils.logging import logger
@@ -16,6 +17,22 @@ HEADERS = {
     "x-rapidapi-key": RAPID_API_KEY,
     "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
 }
+
+
+def fetch_leagues() -> list[League]:
+    try:
+        url = f"{BASE_URL}leagues"
+        response = requests.get(url, headers=HEADERS)
+        if response.status_code != 200 or response.json()["errors"]:
+            raise Exception(
+                f"Error fetching leagues: {response.status_code} - {response.text}"
+            )
+        leagues = RapidApiLeaguesResponse(**response.json()).data
+        logger.info(f"Fetched {len(leagues)} leagues")
+        return leagues
+    except Exception:
+        logger.exception("Exception in fetch_leagues")
+        return []
 
 
 def fetch_fixtures_by_league(league_id: int, next: int = 20) -> list[Fixture]:
