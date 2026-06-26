@@ -42,7 +42,6 @@ def make_league(
     logo: str | None = "league.png",
     country: str | None = "England",
     type: str | None = "League",
-    last_fixture_fetch_at: datetime | None = None,
 ) -> League:
     league = League(
         rapid_api_id=rapid_api_id,
@@ -52,7 +51,6 @@ def make_league(
         logo=logo,
         country=country,
         type=type,
-        last_fixture_fetch_at=last_fixture_fetch_at,
     )
     db.add(league)
     db.commit()

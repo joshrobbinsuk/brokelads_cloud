@@ -73,9 +73,6 @@ class League(BaseModel):
     logo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     country: Mapped[str | None] = mapped_column(String(255), nullable=True)
     type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    last_fixture_fetch_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
 
     def __str__(self) -> str:
         return self.name

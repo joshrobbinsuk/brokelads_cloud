@@ -1,12 +1,7 @@
-from datetime import datetime, timezone
-
 from sqlalchemy.orm import Session
 
 from ..utils.logging import logger
-from ..settings import (
-    N_FIXTURES_PER_LEAGUE,
-    LEAGUE_FIXTURE_FETCH_COOLDOWN_SECONDS,
-)
+from ..settings import N_FIXTURES_PER_LEAGUE
 
 from .external_calls import (
     fetch_leagues,
@@ -39,32 +34,16 @@ def run_fetch_fixtures(db: Session) -> None:
         logger.warning("No active leagues found. Skipping fixture fetch.")
         return
 
-    now = datetime.now(timezone.utc)
     for league in leagues:
         count = count_non_started_fixtures_by_league(db, league.id)
         if count >= N_FIXTURES_PER_LEAGUE:
             logger.info(f"League {league.name} at target ({count}). Skipping fetch.")
             continue
 
-        last_fetch = league.last_fixture_fetch_at
-        # SQLite (test engine) drops tzinfo on round-trip; treat a naive value
-        # as UTC so the cooldown arithmetic below never compares aware vs naive.
-        if last_fetch is not None and last_fetch.tzinfo is None:
-            last_fetch = last_fetch.replace(tzinfo=timezone.utc)
-        if last_fetch is not None and (
-            (now - last_fetch).total_seconds() < LEAGUE_FIXTURE_FETCH_COOLDOWN_SECONDS
-        ):
-            logger.info(
-                f"League {league.name} fetched within cooldown. Skipping fetch."
-            )
-            continue
-
         fixtures = fetch_fixtures_by_league(
             league_id=league.rapid_api_id, next=N_FIXTURES_PER_LEAGUE
         )
         save_new_fixtures(db, fixtures, league_id=league.id)
-        league.last_fixture_fetch_at = now
-        db.commit()
 
 
 def run_fetch_odds(db: Session) -> None:
