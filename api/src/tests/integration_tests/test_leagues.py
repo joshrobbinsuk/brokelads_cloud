@@ -6,7 +6,7 @@ The external API call is monkeypatched, so no network/API key is needed.
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.models import Fixture, League
 from src.rapid_api import jobs as jobs_module
@@ -202,6 +202,30 @@ class TestRunFetchFixturesPerLeague:
 
         run_fetch_fixtures(db)
 
+        assert called == [39]
+
+    def test_empty_fetch_persists_cooldown_and_backs_off(
+        self, db: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: a failed/empty fetch (fetch_fixtures_by_league fail-softs to
+        # []) must still persist last_fixture_fetch_at so the league backs off,
+        # instead of re-hitting the API every run and burning the quota.
+        make_league(db, rapid_api_id=39, active=True)
+        called = self._patch_fetch(monkeypatch, [])  # simulate API failure
+
+        run_fetch_fixtures(db)
+
+        # Persisted (re-query in a fresh session bound to the same engine, so
+        # this proves a commit happened, not just an in-memory ORM assignment).
+        fresh = sessionmaker(bind=db.get_bind())()
+        try:
+            league = fresh.query(League).filter_by(rapid_api_id=39).one()
+            assert league.last_fixture_fetch_at is not None
+        finally:
+            fresh.close()
+
+        # Immediate re-run: cooldown has engaged, so no second API call.
+        run_fetch_fixtures(db)
         assert called == [39]
 
 

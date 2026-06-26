@@ -25,7 +25,7 @@ class FixtureResponse(BaseModel):
     status: str
     rapid_api_id: int
     kick_off: datetime
-    venue: str
+    venue: str | None
     home_team: str
     home_team_logo: str
     away_team: str
