@@ -17,7 +17,7 @@ class LeagueAdmin(ModelView, model=League):
 class FixtureAdmin(ModelView, model=Fixture):
     column_list = ["home_team", "away_team", "league", "status", "kick_off"]
     column_sortable_list = ["kick_off"]
-    column_searchable_list = ["status"]
+    column_searchable_list = ["league.name", "home_team", "away_team", "status"]
 
 
 class BetAdmin(ModelView, model=Bet):
