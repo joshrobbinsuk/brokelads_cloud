@@ -21,7 +21,6 @@ from ..models import (
 from ..utils.logging import logger
 from ..settings import (
     NOT_STARTED_STATUSES,
-    CLIENT_FIXTURE_LIMIT,
     PUNDIT_RECENT_BET_LIMIT,
 )
 from ..utils.weeks import current_week_window
@@ -117,7 +116,6 @@ def fetch_non_started_fixtures_with_odds(
     db: Session,
     search: str | None = None,
     league_id: str | None = None,
-    limit: int = CLIENT_FIXTURE_LIMIT,
 ) -> list[Fixture]:
 
     try:
@@ -149,7 +147,7 @@ def fetch_non_started_fixtures_with_odds(
                 )
             )
 
-        return query.order_by(Fixture.kick_off.asc()).limit(limit).all()
+        return query.order_by(Fixture.kick_off.asc()).all()
     except Exception:
         logger.exception("Error fetching non-started fixtures with odds")
         raise
@@ -159,8 +157,8 @@ def fetch_visible_fixture_slate_by_ids(
     db: Session, fixture_ids: Sequence[str]
 ) -> list[Fixture]:
     """Of the requested ids, return only those in the current visible slate
-    (not-started, all three odds present, within CLIENT_FIXTURE_LIMIT), in
-    request order with duplicates removed."""
+    (not-started, all three odds present, in the current week), in request order
+    with duplicates removed."""
     try:
         visible = fetch_non_started_fixtures_with_odds(db)
         by_id = {fixture.id: fixture for fixture in visible}
