@@ -196,7 +196,9 @@ class _SourceStripper:
         if trailing:
             low = trailing.group(0).lstrip("(").lower()
             schemes = ("http://", "https://", "www.")
-            if low and (low.startswith(schemes) or any(s.startswith(low) for s in schemes)):
+            if low and (
+                low.startswith(schemes) or any(s.startswith(low) for s in schemes)
+            ):
                 holds.append(trailing.start())
         return min(holds) if holds else len(buf)
 

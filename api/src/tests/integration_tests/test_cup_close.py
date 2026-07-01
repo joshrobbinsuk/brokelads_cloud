@@ -82,9 +82,7 @@ def test_backstop_excludes_finished_but_unsettled_fixtures(db: Session) -> None:
     entry = make_cup_entry(db, cup=cup, user=user)
     old = now - timedelta(hours=10)  # past the 6h backstop
     stuck = make_fixture(db, status="SUSP", kick_off=old)
-    finished = make_fixture(
-        db, status="FT", home_goals=2, away_goals=0, kick_off=old
-    )
+    finished = make_fixture(db, status="FT", home_goals=2, away_goals=0, kick_off=old)
     stuck_bet = make_bet(db, user=user, fixture=stuck, cup_entry=entry)
     make_bet(db, user=user, fixture=finished, cup_entry=entry)
 
