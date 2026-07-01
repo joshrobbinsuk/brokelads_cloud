@@ -28,10 +28,18 @@ from .queries import (
     get_recent_user_bets_for_pundit,
     create_bet,
     get_user_bets,
+    set_username,
     ClientSideError,
+    UsernameTakenError,
 )
 from . import cup as cup_queries
-from .schemas import CreateBetRequest, CupSummary, FixtureResponse, LeagueOut
+from .schemas import (
+    CreateBetRequest,
+    CupSummary,
+    FixtureResponse,
+    LeagueOut,
+    SetUsernameRequest,
+)
 from .pundit_schemas import AskPunditRequest
 from .pundit import build_pundit_context, is_email_allowed, stream_pundit_response
 
@@ -273,6 +281,7 @@ async def get_me(
             "status": user.status,
             "cognito_uuid": user.cognito_uuid,
             "email": user.email,
+            "username": user.username,
             "balance": str(cup_queries.current_balance(db, user, now)),
             "cups_won": cup_queries.cups_won(db, user),
             "created_at": user.created_at,
@@ -283,4 +292,31 @@ async def get_me(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while fetching the user",
+        )
+
+
+@router.put("/me/username")
+async def set_my_username(
+    payload: SetUsernameRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        updated = set_username(db, user, payload.username)
+        return {"username": updated.username}
+    except UsernameTakenError:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="That username is already taken",
+        )
+    except ClientSideError as e:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception:
+        logger.exception("Error setting username")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while setting the username",
         )

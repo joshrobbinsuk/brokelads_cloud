@@ -26,8 +26,11 @@ def make_user(
     email: str = "user@test.com",
     cognito_uuid: str = "cognito-1",
     status: str = UserStatus.ACTIVE.value,
+    username: str | None = None,
 ) -> User:
-    user = User(email=email, cognito_uuid=cognito_uuid, status=status)
+    user = User(
+        email=email, cognito_uuid=cognito_uuid, status=status, username=username
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

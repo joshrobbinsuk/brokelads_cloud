@@ -10,6 +10,10 @@ class CreateBetRequest(BaseModel):
     stake: Decimal = Field(gt=0, decimal_places=2)
 
 
+class SetUsernameRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9_]+$")
+
+
 class LeagueOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
