@@ -7,7 +7,7 @@ FastAPI + PostgreSQL backend for the BrokeLads sports-betting demo. Ingests foot
 Three feature packages, each a deep module with a thin surface:
 - `client/` — public REST API (`/client/*`), Cognito-authed. `routes.py` is the surface; `queries.py` holds DB logic, `schemas.py` the Pydantic I/O, `utils/{cognito,user}.py` the auth dependencies.
 - `rapid_api/` — data ingestion + bet settlement jobs. `routes.py` exposes one cron-authed endpoint; `runner.py` orchestrates, `jobs.py` holds the `JOB_REGISTRY`, `external_calls.py` hits API-Football, `schemas/` parses its responses.
-- `admin/` — SQLAdmin UI behind Google OAuth (`auth.py`), model views (`admin_views.py`), manual job triggers (`rapid_api_admin.py`).
+- `admin/` — SQLAdmin UI behind Cognito Hosted-UI OIDC (`auth.py`), model views (`admin_views.py`), manual job triggers (`rapid_api_admin.py`).
 
 Shared: `main.py` (app + router wiring), `models.py` (all SQLAlchemy models), `database.py` (`BaseModel`, engine, `get_db`), `settings.py` (env + domain constants), `utils/logging.py` (loguru).
 
@@ -25,7 +25,7 @@ Football status codes drive settlement — see the `*_STATUSES` lists in `settin
 
 - `GET /client/fixture` (optional `search`, `league_id`), `GET /client/league` (active leagues only), `POST /client/bet`, `GET /client/bet`, `GET /client/me` — all require a Cognito `idToken` Bearer (`verify_token` / `get_current_user`). `/client/fixture` returns a `FixtureResponse` schema nesting `league: {id, display_name, logo} | null`; money fields (odds) serialize as **strings**.
 - `POST /rapid-api/run-jobs` — requires header `X-Cron-Auth-Key: $CRON_AUTH_KEY`; runs due jobs from `JOB_REGISTRY`.
-- `GET /health`, `/admin` (Google OAuth), `GET /auth/google` (OAuth callback).
+- `GET /health`, `/admin` (Cognito Hosted-UI OIDC), `GET /auth/callback` (OIDC callback). Admin access requires the token's email to match `ADMIN_EMAIL` **and** membership in the Cognito `admins` group.
 
 ## Conventions
 
@@ -54,7 +54,7 @@ Full stack (DB + API + auto-migrate + hot reload) via Docker — see `LOCAL_DEV.
 docker-compose up        # API on :8000, Postgres on :5432 (bl_dev / postgres:postgres)
 ```
 
-Needs `RAPID_API_KEY`, `CRON_AUTH_KEY`, `ADMIN_SESSION_SECRET`, `GOOGLE_CLIENT_*` in the environment (no `.env.example` committed). `DATABASE_URL` and `ADMIN_SESSION_SECRET` are hard-required (app raises on missing).
+Needs `RAPID_API_KEY`, `CRON_AUTH_KEY`, `ADMIN_SESSION_SECRET`, and the admin OIDC vars `ADMIN_COGNITO_CLIENT_ID`/`ADMIN_COGNITO_CLIENT_SECRET` in the environment (no `.env.example` committed). `DATABASE_URL` and `ADMIN_SESSION_SECRET` are hard-required (app raises on missing).
 
 ## Migrations
 
