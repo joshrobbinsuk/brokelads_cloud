@@ -29,14 +29,15 @@ services:
       RAPID_API_KEY: ${RAPID_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+      PUNDIT_ALLOWED_EMAILS: ${PUNDIT_ALLOWED_EMAILS-joshrobbinsukdev+test@gmail.com}
       CRON_AUTH_KEY: ${CRON_AUTH_KEY}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
       # Local admin OAuth login also needs a http://localhost callback registered on the admin
       # client; that is out of scope here (deploy patches the App Runner callback, not localhost).
       ADMIN_COGNITO_CLIENT_ID: ${ADMIN_COGNITO_CLIENT_ID}
       ADMIN_COGNITO_CLIENT_SECRET: ${ADMIN_COGNITO_CLIENT_SECRET}
-      COGNITO_CLIENT_ID: 3gus6mfkiledrp81o8vknkcnqc
-      USER_POOL_ID: eu-west-2_I7hBief9m
+      COGNITO_CLIENT_ID: 2mg2ph3ir84leu2s42pramgjfd
+      USER_POOL_ID: eu-west-2_HSV4yaBye
     command: sh -c "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
