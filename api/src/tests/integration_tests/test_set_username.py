@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.client.cup import leaderboard
@@ -46,6 +47,16 @@ class TestSetUsername:
         updated = set_username(db, user, "JoshR")
 
         assert updated.username == "JoshR"
+
+    def test_db_rejects_case_variant_even_bypassing_set_username(
+        self, db: Session
+    ) -> None:
+        # The functional unique index on lower(username) is the invariant, not
+        # just the app-layer check in set_username.
+        make_user(db, email="a@test.com", cognito_uuid="c-a", username="JoshR")
+
+        with pytest.raises(IntegrityError):
+            make_user(db, email="b@test.com", cognito_uuid="c-b", username="joshr")
 
 
 class TestSetUsernameRequestValidation:

@@ -94,6 +94,9 @@ def set_username(db: Session, user: User, username: str) -> User:
         logger.info(f"User {user.email} set username {username}")
         return user
     except (ClientSideError, UsernameTakenError):
+        # Normal domain rejections (taken / already set) — re-raise without the
+        # logger.exception below (they aren't faults) and without a rollback
+        # (they're detected before any write).
         raise
     except Exception:
         db.rollback()

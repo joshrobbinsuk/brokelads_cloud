@@ -9,7 +9,9 @@ from sqlalchemy import (
     Numeric,
     Boolean,
     ForeignKey,
+    Index,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
@@ -50,6 +52,11 @@ class CupStatus(str, Enum):
 
 class User(BaseModel):
     __tablename__ = "user"
+    # Case-insensitive uniqueness as a true DB invariant (not just an app check).
+    # lower(NULL) is NULL, so multiple NULL usernames are still allowed.
+    __table_args__ = (
+        Index("uq_user_username_lower", text("lower(username)"), unique=True),
+    )
 
     status: Mapped[str] = mapped_column(
         String(16), default=UserStatus.ACTIVE.value, nullable=False
@@ -57,7 +64,8 @@ class User(BaseModel):
     cognito_uuid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     # Null until the user picks one at the first-run gate; set-once thereafter.
-    username: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
+    # Length limit is enforced at the request boundary (SetUsernameRequest).
+    username: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="user")
 

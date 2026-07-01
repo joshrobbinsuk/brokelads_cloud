@@ -115,7 +115,13 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
             .join(User, User.id == CupEntry.user_id)
             .outerjoin(wins, wins.c.user_id == CupEntry.user_id)
             .where(CupEntry.cup_id == cup.id)
-            .order_by(CupEntry.balance.desc(), User.username.asc())
+            # user_id is the final tiebreaker so ordering is deterministic even
+            # when a username is null (a user who bet before onboarding).
+            .order_by(
+                CupEntry.balance.desc(),
+                User.username.asc(),
+                CupEntry.user_id.asc(),
+            )
         )
         rows = db.execute(stmt).mappings().all()
         return [
