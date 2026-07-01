@@ -28,6 +28,8 @@ from .queries import (
     get_recent_user_bets_for_pundit,
     create_bet,
     get_user_bets,
+    increment_pundit_usage,
+    pundit_count_today,
     set_username,
     ClientSideError,
     UsernameTakenError,
@@ -41,7 +43,9 @@ from .schemas import (
     SetUsernameRequest,
 )
 from .pundit_schemas import AskPunditRequest
-from .pundit import build_pundit_context, is_email_allowed, stream_pundit_response
+from .pundit import build_pundit_context, is_unlimited, stream_pundit_response
+from ..settings import PUNDIT_DAILY_LIMIT
+from ..utils.weeks import london_today
 
 router = APIRouter(prefix="/client", tags=["client"])
 
@@ -157,11 +161,17 @@ async def ask_pundit(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    if not is_email_allowed(user.email):
-        raise HTTPException(
-            status_code=http_status.HTTP_403_FORBIDDEN,
-            detail="Ask the Pundit is limited to approved accounts.",
-        )
+    if not is_unlimited(user.email):
+        today = london_today(datetime.now(timezone.utc))
+        if pundit_count_today(db, user, today) >= PUNDIT_DAILY_LIMIT:
+            raise HTTPException(
+                status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"You've used all {PUNDIT_DAILY_LIMIT} of today's pundit "
+                    "questions. Try again tomorrow."
+                ),
+            )
+        increment_pundit_usage(db, user, today)
 
     fixtures = fetch_visible_fixture_slate_by_ids(db, request.fixture_ids)
     found_ids = {fixture.id for fixture in fixtures}
