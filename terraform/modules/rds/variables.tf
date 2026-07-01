@@ -4,9 +4,9 @@ variable "project" {
 }
 
 variable "engine_version" {
-  description = "PostgreSQL engine version"
+  description = "PostgreSQL engine version (baseline for new instances; live minor version drifts upward via auto-minor-upgrade and is ignored on existing instances — see rds/main.tf lifecycle block)"
   type        = string
-  default     = "17.6"
+  default     = "17.9"
 }
 
 variable "instance_class" {
