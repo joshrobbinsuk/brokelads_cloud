@@ -29,7 +29,7 @@ services:
       RAPID_API_KEY: ${RAPID_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
-      PUNDIT_ALLOWED_EMAILS: ${PUNDIT_ALLOWED_EMAILS-joshrobbinsukdev+test@gmail.com}
+      PUNDIT_UNLIMITED_EMAILS: ${PUNDIT_UNLIMITED_EMAILS-joshrobbinsukdev+test@gmail.com}
       CRON_AUTH_KEY: ${CRON_AUTH_KEY}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
       # Local admin OAuth login also needs a http://localhost callback registered on the admin

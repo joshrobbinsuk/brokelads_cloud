@@ -44,17 +44,15 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-def is_email_allowed(email: str | None) -> bool:
-    """Whether `email` may use the pundit. Reads the allowlist from settings at
-    call time. An empty allowlist disables the gate (allow all)."""
-    allowed = {
+def is_unlimited(email: str | None) -> bool:
+    """Whether `email` is exempt from the daily pundit cap. Reads the list from
+    settings at call time. An empty list means nobody is exempt."""
+    unlimited = {
         _normalize_email(entry)
-        for entry in settings.PUNDIT_ALLOWED_EMAILS.split(",")
+        for entry in settings.PUNDIT_UNLIMITED_EMAILS.split(",")
         if entry.strip()
     }
-    if not allowed:
-        return True
-    return email is not None and _normalize_email(email) in allowed
+    return email is not None and _normalize_email(email) in unlimited
 
 
 def _serialize_decimal(value: Decimal | None) -> str | None:

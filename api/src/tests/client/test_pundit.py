@@ -25,7 +25,7 @@ from src.models import BetOutcome, FixtureResult, User
 from src.client.pundit import (
     PunditContext,
     build_pundit_context,
-    is_email_allowed,
+    is_unlimited,
     stream_pundit_response,
 )
 from src.tests.factories import make_bet, make_fixture, make_league, make_user
@@ -66,10 +66,10 @@ def _override_user(app: FastAPI, user: User) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _disable_pundit_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Default-off so the existing endpoint tests exercise the stream; the
-    # allowlist tests set PUNDIT_ALLOWED_EMAILS explicitly.
-    monkeypatch.setattr(settings, "PUNDIT_ALLOWED_EMAILS", "")
+def _pundit_unlimited_default_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The default test user is exempt from the cap so the streaming/contract
+    # tests exercise the stream; the cap is covered in test_pundit_limit.py.
+    monkeypatch.setattr(settings, "PUNDIT_UNLIMITED_EMAILS", "user@test.com")
 
 
 def test_ask_pundit_requires_auth(client: TestClient, db: Session) -> None:
@@ -144,55 +144,6 @@ def test_streams_expected_sse_contract(
     assert len(deltas) >= 1
     complete = json.loads(events[-2][1])["content"]
     assert "".join(deltas) == complete == "Hello world"
-
-
-def test_non_allowlisted_email_is_forbidden(
-    client: TestClient,
-    app: FastAPI,
-    db: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "PUNDIT_ALLOWED_EMAILS", "approved@test.com")
-    user = make_user(db, email="someone-else@test.com", cognito_uuid="other")
-    _override_user(app, user)
-    fixture = make_fixture(db, status="NS")
-
-    resp = client.post(
-        "/client/pundit",
-        json={
-            "fixture_ids": [fixture.id],
-            "conversation": [{"role": "user", "content": "Any tips?"}],
-        },
-    )
-    assert resp.status_code == 403
-    assert resp.json()["detail"] == "Ask the Pundit is limited to approved accounts."
-
-
-def test_allowlisted_email_streams(
-    client: TestClient,
-    app: FastAPI,
-    db: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    user = make_user(db, email="Approved@Test.com", cognito_uuid="approved")
-    # Allowlist holds a differently-cased address to prove normalization.
-    monkeypatch.setattr(settings, "PUNDIT_ALLOWED_EMAILS", "approved@test.com, x@y.com")
-    _override_user(app, user)
-    fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
-    _inject_fake_stream(monkeypatch, ["Hi"])
-
-    resp = client.post(
-        "/client/pundit",
-        json={
-            "fixture_ids": [fixture.id],
-            "conversation": [{"role": "user", "content": "Any tips?"}],
-        },
-    )
-    assert resp.status_code == 200
-    assert resp.headers["content-type"].startswith("text/event-stream")
-    names = [name for name, _ in _parse_sse(resp.text)]
-    assert names[0] == "message_start"
-    assert names[-1] == "done"
 
 
 def test_recent_bet_summaries_limited_and_ordered(db: Session) -> None:
@@ -280,18 +231,18 @@ class TestFetchVisibleFixtureSlateByIds:
         assert [fixture.id for fixture in result] == [visible.id]
 
 
-class TestIsEmailAllowed:
-    def test_empty_allowlist_allows_all(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(settings, "PUNDIT_ALLOWED_EMAILS", "   ,  ")
-        assert is_email_allowed("anyone@test.com") is True
-        assert is_email_allowed(None) is True
+class TestIsUnlimited:
+    def test_empty_list_exempts_nobody(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "PUNDIT_UNLIMITED_EMAILS", "   ,  ")
+        assert is_unlimited("anyone@test.com") is False
+        assert is_unlimited(None) is False
 
     def test_normalized_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(settings, "PUNDIT_ALLOWED_EMAILS", " A@B.com , c@d.com ")
-        assert is_email_allowed("a@b.com") is True
-        assert is_email_allowed("A@B.COM ") is True
-        assert is_email_allowed("e@f.com") is False
-        assert is_email_allowed(None) is False
+        monkeypatch.setattr(settings, "PUNDIT_UNLIMITED_EMAILS", " A@B.com , c@d.com ")
+        assert is_unlimited("a@b.com") is True
+        assert is_unlimited("A@B.COM ") is True
+        assert is_unlimited("e@f.com") is False
+        assert is_unlimited(None) is False
 
 
 def test_mid_stream_error_emits_error_then_done() -> None:

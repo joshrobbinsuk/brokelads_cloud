@@ -1,7 +1,12 @@
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from ..settings import CUP_TIMEZONE
+
+
+def london_today(now: datetime) -> date:
+    """The civil date in CUP_TIMEZONE at instant `now` (aware UTC)."""
+    return now.astimezone(ZoneInfo(CUP_TIMEZONE)).date()
 
 
 def current_week_window(now: datetime) -> tuple[datetime, datetime]:

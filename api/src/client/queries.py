@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Sequence
 
@@ -11,6 +11,7 @@ from ..models import (
     CupEntry,
     Fixture,
     League,
+    PunditUsage,
     User,
     FixtureResult,
     TransactionRecord,
@@ -188,6 +189,37 @@ def get_recent_user_bets_for_pundit(
         return get_user_bets(db, user_id, limit=limit)
     except Exception:
         logger.exception(f"Error fetching recent bets for pundit, user {user_id}")
+        raise
+
+
+def pundit_count_today(db: Session, user: User, today: date) -> int:
+    try:
+        row = (
+            db.query(PunditUsage)
+            .filter(PunditUsage.user_id == user.id, PunditUsage.day == today)
+            .first()
+        )
+        return row.count if row is not None else 0
+    except Exception:
+        logger.exception(f"Error reading pundit usage for user {user.id}")
+        raise
+
+
+def increment_pundit_usage(db: Session, user: User, today: date) -> None:
+    try:
+        row = (
+            db.query(PunditUsage)
+            .filter(PunditUsage.user_id == user.id, PunditUsage.day == today)
+            .first()
+        )
+        if row is None:
+            row = PunditUsage(user_id=user.id, day=today, count=0)
+            db.add(row)
+        row.count += 1
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(f"Error incrementing pundit usage for user {user.id}")
         raise
 
 

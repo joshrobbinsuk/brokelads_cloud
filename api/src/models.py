@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy import (
+    Date,
     Integer,
     String,
     DateTime,
@@ -259,6 +260,19 @@ class CupEntry(BaseModel):
 
     def credit(self, amount: Decimal) -> None:
         self.balance = self.balance + amount
+
+
+class PunditUsage(BaseModel):
+    __tablename__ = "pundit_usage"
+    __table_args__ = (
+        UniqueConstraint("user_id", "day", name="uq_pundit_usage_user_day"),
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("user.id"), nullable=False
+    )
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 class JobControl(BaseModel):
