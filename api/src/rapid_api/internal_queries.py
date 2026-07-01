@@ -303,7 +303,10 @@ def fetch_cups_to_close(db: Session, now: datetime) -> list[Cup]:
 
 def fetch_cup_backstop_bets(db: Session, cup: Cup, now: datetime) -> list[Bet]:
     """Still-UNDECIDED bets in a cup whose fixture kicked off more than
-    CUP_BET_MAX_AGE_HOURS ago — the silent non-updates the backstop force-voids."""
+    CUP_BET_MAX_AGE_HOURS ago and is NOT in a finished state — the silent
+    non-updates the backstop force-voids. Finished fixtures (OUTCOME_STATUSES)
+    are excluded: a finished-but-unsettled bet (e.g. left behind by the
+    settle_bets row cap) must be settled as win/lose, never voided."""
     try:
         cutoff = now - timedelta(hours=CUP_BET_MAX_AGE_HOURS)
         return (
@@ -315,6 +318,7 @@ def fetch_cup_backstop_bets(db: Session, cup: Cup, now: datetime) -> list[Bet]:
                 CupEntry.cup_id == cup.id,
                 Bet.outcome == BetOutcome.UNDECIDED.value,
                 Fixture.kick_off <= cutoff,
+                Fixture.status.notin_(OUTCOME_STATUSES),
             )
             .all()
         )

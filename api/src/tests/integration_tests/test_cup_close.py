@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.client.cup import cups_won
 from src.models import BetOutcome, CupStatus, FixtureResult
+from src.rapid_api.internal_queries import fetch_cup_backstop_bets
 from src.rapid_api.jobs import run_close_cups
 from src.tests.factories import (
     make_bet,
@@ -68,6 +69,29 @@ def test_cup_not_settled_while_undecided_bet_remains(db: Session) -> None:
     db.refresh(cup)
     assert bet.outcome == BetOutcome.UNDECIDED.value
     assert cup.status == CupStatus.CLOSING.value  # waits for settlement
+
+
+def test_backstop_excludes_finished_but_unsettled_fixtures(db: Session) -> None:
+    """A finished-but-unsettled bet (e.g. one left behind by the settle_bets row
+    cap) must never be force-voided by the backstop — it belongs to the win/lose
+    path. Only genuinely stuck (non-final) fixtures are voidable."""
+    now = datetime.now(timezone.utc)
+    start, end = _past_week()
+    cup = make_cup(db, week_start=start, week_end=end, status=CupStatus.OPEN.value)
+    user = make_user(db)
+    entry = make_cup_entry(db, cup=cup, user=user)
+    old = now - timedelta(hours=10)  # past the 6h backstop
+    stuck = make_fixture(db, status="SUSP", kick_off=old)
+    finished = make_fixture(
+        db, status="FT", home_goals=2, away_goals=0, kick_off=old
+    )
+    stuck_bet = make_bet(db, user=user, fixture=stuck, cup_entry=entry)
+    make_bet(db, user=user, fixture=finished, cup_entry=entry)
+
+    voidable = {b.id for b in fetch_cup_backstop_bets(db, cup, now)}
+
+    assert stuck_bet.id in voidable  # stuck fixture -> force-voidable
+    assert len(voidable) == 1  # finished fixture excluded, not mispaid
 
 
 def test_ties_produce_co_winners_and_cups_won_counts_them(db: Session) -> None:
