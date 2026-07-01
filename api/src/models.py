@@ -56,9 +56,6 @@ class User(BaseModel):
     )
     cognito_uuid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    balance: Mapped[Decimal] = mapped_column(
-        Numeric(19, 2), default=Decimal("100.00"), nullable=False
-    )
 
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="user")
 

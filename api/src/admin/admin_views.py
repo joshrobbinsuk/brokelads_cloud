@@ -1,10 +1,19 @@
 from sqladmin import Admin, ModelView
-from ..models import League, User, Fixture, Bet, TransactionRecord, JobControl
+from ..models import (
+    League,
+    User,
+    Fixture,
+    Bet,
+    TransactionRecord,
+    JobControl,
+    Cup,
+    CupEntry,
+)
 from .rapid_api_admin import RapidAPIAdmin
 
 
 class UserAdmin(ModelView, model=User):
-    column_list = ["email", "balance"]
+    column_list = ["email"]
 
 
 class LeagueAdmin(ModelView, model=League):
@@ -34,6 +43,17 @@ class JobControlAdmin(ModelView, model=JobControl):
     column_list = ["job_name", "last_run_at"]
 
 
+class CupAdmin(ModelView, model=Cup):
+    column_list = ["week_start", "week_end", "status"]
+    column_sortable_list = ["week_start"]
+    column_searchable_list = ["status"]
+
+
+class CupEntryAdmin(ModelView, model=CupEntry):
+    column_list = ["cup", "user", "balance", "is_winner"]
+    column_sortable_list = ["balance"]
+
+
 def register_admin_views(admin: Admin) -> None:
     admin.add_view(UserAdmin)
     admin.add_view(LeagueAdmin)
@@ -41,4 +61,6 @@ def register_admin_views(admin: Admin) -> None:
     admin.add_view(BetAdmin)
     admin.add_view(TransactionRecordAdmin)
     admin.add_view(JobControlAdmin)
+    admin.add_view(CupAdmin)
+    admin.add_view(CupEntryAdmin)
     admin.add_view(RapidAPIAdmin)
