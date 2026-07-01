@@ -171,6 +171,20 @@ class TestFetchFilters:
         result = fetch_fixtures_missing_odds(db)
         assert len(result) == 1
 
+    def test_missing_odds_excludes_kicked_off_fixtures(self, db: Session) -> None:
+        make_fixture(db, status="NS", home_odds=None, away_odds=None, draw_odds=None)
+        make_fixture(
+            db,
+            status="FT",
+            home_goals=1,
+            away_goals=0,
+            home_odds=None,
+            away_odds=None,
+            draw_odds=None,
+        )
+        result = fetch_fixtures_missing_odds(db)
+        assert [f.status for f in result] == ["NS"]
+
     def test_bets_to_settle_only_undecided_on_finished_fixtures(
         self, db: Session
     ) -> None:

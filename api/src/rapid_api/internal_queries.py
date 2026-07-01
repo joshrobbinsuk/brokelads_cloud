@@ -157,6 +157,7 @@ def fetch_fixtures_missing_odds(db: Session, limit: int = 50) -> list[Fixture]:
         return (
             db.query(Fixture)
             .filter(
+                Fixture.status.in_(NOT_STARTED_STATUSES),
                 Fixture.home_odds.is_(None),
                 Fixture.away_odds.is_(None),
                 Fixture.draw_odds.is_(None),

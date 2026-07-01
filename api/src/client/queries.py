@@ -146,8 +146,6 @@ def fetch_non_started_fixtures_with_odds(
                 )
             )
 
-        # No cap: show the whole current week's fixtures (the week-window filter
-        # above bounds the set; a busy week is a long scroll, by design).
         return query.order_by(Fixture.kick_off.asc()).all()
     except Exception:
         logger.exception("Error fetching non-started fixtures with odds")
