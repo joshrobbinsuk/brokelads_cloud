@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from src.models import (
     Bet,
     BetOutcome,
+    Cup,
+    CupEntry,
+    CupStatus,
     Fixture,
     FixtureResult,
     League,
@@ -101,10 +104,12 @@ def make_bet(
     stake: Decimal = Decimal("10.00"),
     returns: Decimal = Decimal("30.00"),
     outcome: str = BetOutcome.UNDECIDED.value,
+    cup_entry: "CupEntry | None" = None,
 ) -> Bet:
     bet = Bet(
         user_id=user.id,
         fixture_id=fixture.id,
+        cup_entry_id=cup_entry.id if cup_entry is not None else None,
         choice=choice.value,
         stake=stake,
         returns=returns,
@@ -114,3 +119,42 @@ def make_bet(
     db.commit()
     db.refresh(bet)
     return bet
+
+
+def make_cup(
+    db: Session,
+    *,
+    week_start: datetime | None = None,
+    week_end: datetime | None = None,
+    status: str = CupStatus.OPEN.value,
+) -> Cup:
+    start = week_start or datetime(2026, 1, 12, 0, 0, tzinfo=timezone.utc)
+    cup = Cup(
+        week_start=start,
+        week_end=week_end or (start + timedelta(days=7)),
+        status=status,
+    )
+    db.add(cup)
+    db.commit()
+    db.refresh(cup)
+    return cup
+
+
+def make_cup_entry(
+    db: Session,
+    *,
+    cup: Cup,
+    user: User,
+    balance: Decimal = Decimal("1000.00"),
+    is_winner: bool = False,
+) -> CupEntry:
+    entry = CupEntry(
+        cup_id=cup.id,
+        user_id=user.id,
+        balance=balance,
+        is_winner=is_winner,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry

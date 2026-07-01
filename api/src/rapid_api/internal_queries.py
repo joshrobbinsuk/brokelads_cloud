@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Sequence
 
 from sqlalchemy import insert, update
@@ -9,7 +10,9 @@ from ..models import (
     League,
     Bet,
     BetOutcome,
-    User,
+    Cup,
+    CupEntry,
+    CupStatus,
     TransactionRecord,
     TransactionType,
 )
@@ -19,6 +22,7 @@ from ..settings import (
     FINISHED_STATUSES,
     OUTCOME_STATUSES,
     VOIDED_STATUSES,
+    CUP_BET_MAX_AGE_HOURS,
 )
 
 from .schemas.fixture import (
@@ -219,25 +223,33 @@ def fetch_voided_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
         raise
 
 
+def _entry_for_bet(db: Session, bet: Bet) -> CupEntry | None:
+    if bet.cup_entry_id is None:
+        return None
+    entry = db.query(CupEntry).filter(CupEntry.id == bet.cup_entry_id).first()
+    if entry is None:
+        raise Exception(f"Cup entry {bet.cup_entry_id} not found for bet {bet.id}.")
+    return entry
+
+
 def settle_bet(db: Session, bet: Bet, won: bool) -> None:
     try:
         if bet.outcome != BetOutcome.UNDECIDED.value:
             raise Exception(f"Bet {bet.id} has already been settled.")
-        user = db.query(User).filter(User.id == bet.user_id).first()
-        if user is None:
-            raise Exception(f"User {bet.user_id} not found for bet {bet.id}.")
+        entry = _entry_for_bet(db, bet)
         if won:
             bet.outcome = BetOutcome.WON.value
-            balance_before = user.balance
-            user.balance = balance_before + bet.returns
-
-            transaction = TransactionRecord(
-                bet_id=bet.id,
-                type=TransactionType.PAYOUT_BET_WON.value,
-                user_balance_before=balance_before,
-                user_balance_after=user.balance,
-            )
-            db.add(transaction)
+            if entry is not None:
+                balance_before = entry.balance
+                entry.credit(bet.returns)
+                db.add(
+                    TransactionRecord(
+                        bet_id=bet.id,
+                        type=TransactionType.PAYOUT_BET_WON.value,
+                        user_balance_before=balance_before,
+                        user_balance_after=entry.balance,
+                    )
+                )
         else:
             bet.outcome = BetOutcome.LOST.value
 
@@ -253,26 +265,114 @@ def settle_voided_bet(db: Session, bet: Bet) -> None:
     try:
         if bet.outcome != BetOutcome.UNDECIDED.value:
             raise Exception(f"Bet {bet.id} has already been settled.")
-        user = db.query(User).filter(User.id == bet.user_id).first()
-        if user is None:
-            raise Exception(f"User {bet.user_id} not found for bet {bet.id}.")
+        entry = _entry_for_bet(db, bet)
         bet.outcome = BetOutcome.VOIDED.value
-        payout = bet.stake
 
-        balance_before = user.balance
-        user.balance = balance_before + payout
+        if entry is not None:
+            balance_before = entry.balance
+            entry.credit(bet.stake)
+            db.add(
+                TransactionRecord(
+                    bet_id=bet.id,
+                    type=TransactionType.PAYOUT_BET_VOIDED.value,
+                    user_balance_before=balance_before,
+                    user_balance_after=entry.balance,
+                )
+            )
 
-        transaction = TransactionRecord(
-            bet_id=bet.id,
-            type=TransactionType.PAYOUT_BET_VOIDED.value,
-            user_balance_before=balance_before,
-            user_balance_after=user.balance,
-        )
-
-        db.add(transaction)
         db.commit()
 
     except Exception:
         db.rollback()
         logger.exception(f"Error settling voided bet {bet.id}")
+        raise
+
+
+def fetch_cups_to_close(db: Session, now: datetime) -> list[Cup]:
+    """Cups whose week has ended and which are not yet SETTLED."""
+    try:
+        return (
+            db.query(Cup)
+            .filter(Cup.week_end <= now, Cup.status != CupStatus.SETTLED.value)
+            .all()
+        )
+    except Exception:
+        logger.exception("Error fetching cups to close")
+        raise
+
+
+def fetch_cup_backstop_bets(db: Session, cup: Cup, now: datetime) -> list[Bet]:
+    """Still-UNDECIDED bets in a cup whose fixture kicked off more than
+    CUP_BET_MAX_AGE_HOURS ago and is NOT in a finished state — the silent
+    non-updates the backstop force-voids. Finished fixtures (OUTCOME_STATUSES)
+    are excluded: a finished-but-unsettled bet (e.g. left behind by the
+    settle_bets row cap) must be settled as win/lose, never voided."""
+    try:
+        cutoff = now - timedelta(hours=CUP_BET_MAX_AGE_HOURS)
+        return (
+            db.query(Bet)
+            .options(joinedload(Bet.fixture))
+            .join(CupEntry, CupEntry.id == Bet.cup_entry_id)
+            .join(Fixture, Fixture.id == Bet.fixture_id)
+            .filter(
+                CupEntry.cup_id == cup.id,
+                Bet.outcome == BetOutcome.UNDECIDED.value,
+                Fixture.kick_off <= cutoff,
+                Fixture.status.notin_(OUTCOME_STATUSES),
+            )
+            .all()
+        )
+    except Exception:
+        logger.exception("Error fetching cup backstop bets")
+        raise
+
+
+def count_undecided_bets_in_cup(db: Session, cup: Cup) -> int:
+    try:
+        return (
+            db.query(Bet)
+            .join(CupEntry, CupEntry.id == Bet.cup_entry_id)
+            .filter(
+                CupEntry.cup_id == cup.id,
+                Bet.outcome == BetOutcome.UNDECIDED.value,
+            )
+            .count()
+        )
+    except Exception:
+        logger.exception("Error counting undecided bets in cup")
+        raise
+
+
+def settle_cup(db: Session, cup: Cup) -> None:
+    """Flag the top-balance entry/entries as winner(s) (co-winners on ties) and
+    mark the cup SETTLED. Caller guarantees no UNDECIDED bets remain."""
+    try:
+        entries = (
+            db.query(CupEntry)
+            .filter(CupEntry.cup_id == cup.id)
+            .order_by(CupEntry.balance.desc())
+            .all()
+        )
+        if entries:
+            top_balance = entries[0].balance
+            for entry in entries:
+                if entry.balance == top_balance:
+                    entry.is_winner = True
+        cup.status = CupStatus.SETTLED.value
+        db.commit()
+        logger.info(f"Cup {cup.id} settled.")
+    except Exception:
+        db.rollback()
+        logger.exception(f"Error settling cup {cup.id}")
+        raise
+
+
+def mark_cup_closing(db: Session, cup: Cup) -> None:
+    try:
+        if cup.status == CupStatus.OPEN.value:
+            cup.status = CupStatus.CLOSING.value
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(f"Error marking cup {cup.id} closing")
         raise

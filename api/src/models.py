@@ -2,7 +2,15 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import Integer, String, DateTime, Numeric, Boolean, ForeignKey
+from sqlalchemy import (
+    Integer,
+    String,
+    DateTime,
+    Numeric,
+    Boolean,
+    ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from src.database import BaseModel
@@ -32,6 +40,12 @@ class TransactionType(str, Enum):
     BET = "BET"
     PAYOUT_BET_WON = "WON"
     PAYOUT_BET_VOIDED = "VOID"
+
+
+class CupStatus(str, Enum):
+    OPEN = "OPEN"
+    CLOSING = "CLOSING"
+    SETTLED = "SETTLED"
 
 
 class User(BaseModel):
@@ -136,15 +150,21 @@ class Bet(BaseModel):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("user.id"), nullable=False
     )
+    cup_entry_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("cup_entry.id"), nullable=True
+    )
     choice: Mapped[str] = mapped_column(String(5), nullable=False)
-    stake: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
-    returns: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    stake: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    returns: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
     outcome: Mapped[str] = mapped_column(
         String(10), default=BetOutcome.UNDECIDED.value, nullable=False
     )
 
     fixture: Mapped["Fixture"] = relationship("Fixture", back_populates="bets")
     user: Mapped["User"] = relationship("User", back_populates="bets")
+    cup_entry: Mapped["CupEntry | None"] = relationship(
+        "CupEntry", back_populates="bets"
+    )
     transaction_records: Mapped[list["TransactionRecord"]] = relationship(
         "TransactionRecord", back_populates="bet"
     )
@@ -171,8 +191,8 @@ class TransactionRecord(BaseModel):
     bet_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("bet.id"), nullable=False
     )
-    user_balance_before: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
-    user_balance_after: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    user_balance_before: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    user_balance_after: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
 
     bet: Mapped["Bet"] = relationship("Bet", back_populates="transaction_records")
 
@@ -182,6 +202,56 @@ class TransactionRecord(BaseModel):
         if value not in allowed:
             raise ValueError(f"Invalid transaction type: {value}")
         return value
+
+
+class Cup(BaseModel):
+    __tablename__ = "cup"
+
+    week_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), unique=True, nullable=False
+    )
+    week_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), default=CupStatus.OPEN.value, nullable=False
+    )
+
+    entries: Mapped[list["CupEntry"]] = relationship("CupEntry", back_populates="cup")
+
+    @validates("status")
+    def validate_status(self, key: str, value: str) -> str:
+        allowed = {e.value for e in CupStatus}
+        if value not in allowed:
+            raise ValueError(f"Invalid cup status: {value}")
+        return value
+
+    def __str__(self) -> str:
+        return f"Cup {self.week_start:%Y-%m-%d} ({self.status})"
+
+
+class CupEntry(BaseModel):
+    __tablename__ = "cup_entry"
+    __table_args__ = (UniqueConstraint("cup_id", "user_id", name="uq_cup_entry"),)
+
+    cup_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("cup.id"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("user.id"), nullable=False
+    )
+    balance: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    is_winner: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    cup: Mapped["Cup"] = relationship("Cup", back_populates="entries")
+    user: Mapped["User"] = relationship("User")
+    bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="cup_entry")
+
+    def debit(self, amount: Decimal) -> None:
+        if amount > self.balance:
+            raise ValueError("Insufficient cup balance")
+        self.balance = self.balance - amount
+
+    def credit(self, amount: Decimal) -> None:
+        self.balance = self.balance + amount
 
 
 class JobControl(BaseModel):

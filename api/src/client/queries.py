@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Sequence
 
@@ -7,6 +8,7 @@ from sqlalchemy import select, or_
 
 from ..models import (
     Bet,
+    CupEntry,
     Fixture,
     League,
     User,
@@ -21,6 +23,8 @@ from ..settings import (
     CLIENT_FIXTURE_LIMIT,
     PUNDIT_RECENT_BET_LIMIT,
 )
+from ..utils.weeks import current_week_window
+from .cup import get_or_create_current_cup, get_or_create_entry
 
 
 class ClientSideError(Exception):
@@ -81,6 +85,7 @@ def fetch_non_started_fixtures_with_odds(
 ) -> list[Fixture]:
 
     try:
+        week_start, week_end = current_week_window(datetime.now(timezone.utc))
         query = (
             db.query(Fixture)
             .options(joinedload(Fixture.league))
@@ -90,6 +95,8 @@ def fetch_non_started_fixtures_with_odds(
                 Fixture.home_odds.isnot(None),
                 Fixture.away_odds.isnot(None),
                 Fixture.draw_odds.isnot(None),
+                Fixture.kick_off >= week_start,
+                Fixture.kick_off < week_end,
             )
         )
 
@@ -155,6 +162,7 @@ def get_user_bets(
     outcome: str | None = None,
     search: str | None = None,
     limit: int | None = 30,
+    cup_id: str | None = None,
 ) -> Sequence[RowMapping]:
     try:
         stmt = (
@@ -162,6 +170,7 @@ def get_user_bets(
                 Bet.id.label("id"),
                 Bet.user_id.label("user_id"),
                 Bet.fixture_id.label("fixture_id"),
+                Bet.cup_entry_id.label("cup_entry_id"),
                 Fixture.home_team.label("home_team"),
                 Fixture.away_team.label("away_team"),
                 Fixture.kick_off.label("kick_off"),
@@ -174,6 +183,11 @@ def get_user_bets(
             .join(Fixture, Fixture.id == Bet.fixture_id)
             .where(Bet.user_id == user_id)
         )
+
+        if cup_id:
+            stmt = stmt.join(CupEntry, CupEntry.id == Bet.cup_entry_id).where(
+                CupEntry.cup_id == cup_id
+            )
 
         if outcome:
             stmt = stmt.where(Bet.outcome == outcome)
@@ -209,6 +223,7 @@ def create_bet(
     stake: Decimal,
 ) -> dict[str, object]:
     try:
+        now = datetime.now(timezone.utc)
         fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
         if not fixture or not fixture.has_odds:
             raise ClientSideError("Invalid fixture or fixture does not have odds")
@@ -216,7 +231,13 @@ def create_bet(
         if fixture.status not in NOT_STARTED_STATUSES:
             raise ClientSideError("Fixture has already started")
 
-        if user.balance < stake:
+        cup = get_or_create_current_cup(db, now)
+        if not (cup.week_start <= fixture.kick_off < cup.week_end):
+            raise ClientSideError("Fixture is outside this week's cup")
+
+        entry = get_or_create_entry(db, cup, user)
+        # Not row-locked: accepted for friends-scale v1 (see CLAUDE.md Known gaps).
+        if entry.balance < stake:
             raise ClientSideError("Insufficient funds")
 
         odds_map = {
@@ -233,19 +254,20 @@ def create_bet(
         bet = Bet(
             user_id=user.id,
             fixture_id=fixture.id,
+            cup_entry_id=entry.id,
             choice=choice.value,
             stake=stake,
             returns=returns,
         )
 
-        balance_before = user.balance
-        user.balance = balance_before - stake
+        balance_before = entry.balance
+        entry.debit(stake)
 
         transaction = TransactionRecord(
             bet=bet,
             type=TransactionType.BET.value,
             user_balance_before=balance_before,
-            user_balance_after=user.balance,
+            user_balance_after=entry.balance,
         )
 
         db.add(bet)

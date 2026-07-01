@@ -30,7 +30,13 @@ from src.rapid_api.schemas.fixture import (
     RapidApiFixturesResponse,
 )
 from src.rapid_api.schemas.odds import Odds as OddsSchema
-from src.tests.factories import make_bet, make_fixture, make_user
+from src.tests.factories import (
+    make_bet,
+    make_cup,
+    make_cup_entry,
+    make_fixture,
+    make_user,
+)
 
 
 def _fixture_schema(rapid_id: int, status: str = "NS") -> FixtureSchema:
@@ -239,26 +245,33 @@ class TestRunJobsDueGate:
 
 class TestSettlementJobsThroughRegistry:
     def test_run_settle_voided_bets_refunds_stake(self, db: Session) -> None:
-        user = make_user(db, balance=Decimal("90.00"))
+        user = make_user(db)
+        cup = make_cup(db)
+        entry = make_cup_entry(db, cup=cup, user=user, balance=Decimal("990.00"))
         fixture = make_fixture(db, status="PST")
-        bet = make_bet(db, user=user, fixture=fixture, stake=Decimal("10.00"))
+        bet = make_bet(
+            db, user=user, fixture=fixture, cup_entry=entry, stake=Decimal("10.00")
+        )
 
         run_settle_voided_bets(db)
 
         db.refresh(bet)
-        db.refresh(user)
+        db.refresh(entry)
         assert bet.outcome == BetOutcome.VOIDED.value
-        assert user.balance == Decimal("100.00")
+        assert entry.balance == Decimal("1000.00")
 
     def test_draw_bet_on_drawn_fixture_wins(self, db: Session) -> None:
         from src.rapid_api.jobs import run_settle_bets
 
-        user = make_user(db, balance=Decimal("90.00"))
+        user = make_user(db)
+        cup = make_cup(db)
+        entry = make_cup_entry(db, cup=cup, user=user, balance=Decimal("990.00"))
         fixture = make_fixture(db, status="FT", home_goals=1, away_goals=1)
         bet = make_bet(
             db,
             user=user,
             fixture=fixture,
+            cup_entry=entry,
             choice=FixtureResult.DRAW,
             returns=Decimal("40.00"),
         )
@@ -266,6 +279,6 @@ class TestSettlementJobsThroughRegistry:
         run_settle_bets(db)
 
         db.refresh(bet)
-        db.refresh(user)
+        db.refresh(entry)
         assert bet.outcome == BetOutcome.WON.value
-        assert user.balance == Decimal("130.00")  # 90 + 40
+        assert entry.balance == Decimal("1030.00")  # 990 + 40
