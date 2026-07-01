@@ -26,9 +26,9 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name        = "${local.rds_identifier}-sg"
-    Project     = var.project
-    ManagedBy   = "terraform"
+    Name      = "${local.rds_identifier}-sg"
+    Project   = var.project
+    ManagedBy = "terraform"
   }
 }
 
@@ -38,6 +38,11 @@ resource "aws_db_instance" "postgres" {
   engine         = "postgres"
   engine_version = var.engine_version
   instance_class = var.instance_class
+
+  # RDS applies automatic minor-version upgrades, so the live engine version
+  # drifts above the pinned value. Keep auto-upgrades on and ignore the field
+  # below so terraform stops trying to "downgrade" to the pin (AWS rejects it).
+  auto_minor_version_upgrade = true
 
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage
@@ -52,8 +57,8 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.rds.id]
 
   backup_retention_period = var.backup_retention_period
-  backup_window          = var.backup_window
-  maintenance_window     = var.maintenance_window
+  backup_window           = var.backup_window
+  maintenance_window      = var.maintenance_window
 
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${local.rds_identifier}-final-snapshot"
@@ -61,8 +66,13 @@ resource "aws_db_instance" "postgres" {
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   tags = {
-    Name        = local.rds_identifier
-    Project     = var.project
-    ManagedBy   = "terraform"
+    Name      = local.rds_identifier
+    Project   = var.project
+    ManagedBy = "terraform"
+  }
+
+  lifecycle {
+    # AWS auto-minor-upgrades bump the running version; don't fight that drift.
+    ignore_changes = [engine_version]
   }
 }
