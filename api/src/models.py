@@ -56,6 +56,8 @@ class User(BaseModel):
     )
     cognito_uuid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    # Null until the user picks one at the first-run gate; set-once thereafter.
+    username: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
 
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="user")
 

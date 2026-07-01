@@ -4,7 +4,7 @@ from typing import Sequence
 
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select, or_
+from sqlalchemy import func, select, or_
 
 from ..models import (
     Bet,
@@ -28,6 +28,10 @@ from .cup import get_or_create_current_cup, get_or_create_entry
 
 
 class ClientSideError(Exception):
+    pass
+
+
+class UsernameTakenError(Exception):
     pass
 
 
@@ -66,6 +70,34 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
     except Exception:
         db.rollback()
         logger.exception(f"Error getting or creating user {email}")
+        raise
+
+
+def set_username(db: Session, user: User, username: str) -> User:
+    """Set a user's display name once. Format is validated at the request schema;
+    here we enforce set-once and case-insensitive uniqueness. The DB unique
+    constraint is an exact-case backstop; a case-insensitive race is accepted at
+    friends scale (see CLAUDE.md Known gaps)."""
+    try:
+        if user.username is not None:
+            raise ClientSideError("Username is already set")
+
+        existing = (
+            db.query(User).filter(func.lower(User.username) == username.lower()).first()
+        )
+        if existing is not None:
+            raise UsernameTakenError(username)
+
+        user.username = username
+        db.commit()
+        db.refresh(user)
+        logger.info(f"User {user.email} set username {username}")
+        return user
+    except (ClientSideError, UsernameTakenError):
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception(f"Error setting username for {user.email}")
         raise
 
 

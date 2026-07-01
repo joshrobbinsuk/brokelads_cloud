@@ -11,6 +11,14 @@ resource "aws_cognito_user_pool" "main" {
     require_numbers   = true
     require_symbols   = true
   }
+
+  # Branded sign-up email (replaces the bare Cognito default). {####} is the
+  # required confirmation-code placeholder.
+  verification_message_template {
+    default_email_option = "CONFIRM_WITH_CODE"
+    email_subject        = "Your BrokeLads code"
+    email_message        = "Welcome to BrokeLads. Your confirmation code is {####}. Enter it to finish setting up and get in on this week's cup."
+  }
 }
 
 resource "aws_cognito_user_pool_domain" "main" {
@@ -38,8 +46,8 @@ resource "aws_cognito_user_pool_client" "admin_client" {
   name         = "${var.project}-admin-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  generate_secret                     = true
-  supported_identity_providers        = ["COGNITO"]
+  generate_secret                      = true
+  supported_identity_providers         = ["COGNITO"]
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_scopes                 = ["openid", "email", "profile"]

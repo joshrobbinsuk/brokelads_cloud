@@ -52,19 +52,20 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
     client: TestClient, db: Session, user: User
 ) -> None:
     cup = _current_cup(db)
-    other = make_user(db, email="rival@test.com", cognito_uuid="rival")
+    user.username = "me"
+    other = make_user(
+        db, email="rival@test.com", cognito_uuid="rival", username="rival"
+    )
     make_cup_entry(db, cup=cup, user=other, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=user, balance=Decimal("900.00"))
+    db.commit()
 
     body = client.get("/client/cup/current").json()
 
     assert body["cup"]["status"] == CupStatus.OPEN.value
     assert body["your_balance"] == "900.00"
     assert body["your_rank"] == 2
-    assert [row["email"] for row in body["leaderboard"]] == [
-        "rival@test.com",
-        "me@test.com",
-    ]
+    assert [row["username"] for row in body["leaderboard"]] == ["rival", "me"]
     assert body["leaderboard"][0]["balance"] == "1200.00"
 
 

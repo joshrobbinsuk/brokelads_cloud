@@ -92,27 +92,40 @@ def current_balance(db: Session, user: User, now: datetime) -> Decimal:
 
 
 def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
-    """Entries ordered by balance desc, with user identity and winner flag."""
+    """Entries ordered by balance desc, with username, winner flag, and each
+    user's lifetime cup wins (aggregated in-query to avoid an N+1)."""
     try:
+        wins = (
+            select(
+                CupEntry.user_id.label("user_id"),
+                func.count(CupEntry.id).label("cups_won"),
+            )
+            .where(CupEntry.is_winner.is_(True))
+            .group_by(CupEntry.user_id)
+            .subquery()
+        )
         stmt = (
             select(
                 CupEntry.user_id.label("user_id"),
-                User.email.label("email"),
+                User.username.label("username"),
                 CupEntry.balance.label("balance"),
                 CupEntry.is_winner.label("is_winner"),
+                func.coalesce(wins.c.cups_won, 0).label("cups_won"),
             )
             .join(User, User.id == CupEntry.user_id)
+            .outerjoin(wins, wins.c.user_id == CupEntry.user_id)
             .where(CupEntry.cup_id == cup.id)
-            .order_by(CupEntry.balance.desc(), User.email.asc())
+            .order_by(CupEntry.balance.desc(), User.username.asc())
         )
         rows = db.execute(stmt).mappings().all()
         return [
             {
                 "rank": index + 1,
                 "user_id": row["user_id"],
-                "email": row["email"],
+                "username": row["username"],
                 "balance": str(row["balance"]),
                 "is_winner": row["is_winner"],
+                "cups_won": row["cups_won"],
             }
             for index, row in enumerate(rows)
         ]
