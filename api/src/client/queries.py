@@ -236,6 +236,7 @@ def create_bet(
             raise ClientSideError("Fixture is outside this week's cup")
 
         entry = get_or_create_entry(db, cup, user)
+        # Not row-locked: accepted for friends-scale v1 (see CLAUDE.md Known gaps).
         if entry.balance < stake:
             raise ClientSideError("Insufficient funds")
 

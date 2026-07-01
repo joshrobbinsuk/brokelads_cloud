@@ -74,3 +74,4 @@ Default branch is `dev`. GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-ch
 ## Known gaps
 - `ADMIN_EMAIL` and the Cognito client/pool IDs are hardcoded (`settings.py`, `docker-compose.yml`) — fine for a demo, not for reuse.
 - `functions/agent/main.py` is a stub handler.
+- **Cup betting is not concurrency-hardened** (accepted for friends-scale v1): `create_bet`'s balance-check-then-`entry.debit` isn't row-locked, so two truly-simultaneous bets on the same `CupEntry` could overspend it; and the `get_or_create` of a cup/entry can lose a race on the unique constraint, surfacing a transient 500 (rolls back cleanly, self-heals on retry). Harden with `SELECT … FOR UPDATE` + an `IntegrityError` retry if real concurrent load appears.
