@@ -89,4 +89,4 @@ docker run -p 8000:8000 -e DATABASE_URL="postgresql://..." bl-api
 - `GET /health` - Health check
 - `GET /client/fixture`, `POST /client/bet`, `GET /client/bet`, `GET /client/me` - client API (Cognito-authed)
 - `POST /rapid-api/run-jobs` - runs due ingestion/settlement jobs (requires `X-Cron-Auth-Key`)
-- `/admin` - SQLAdmin UI (Google OAuth); `GET /auth/google` is the OAuth callback
+- `/admin` - SQLAdmin UI (Cognito Hosted-UI OIDC); `GET /auth/callback` is the OIDC callback
