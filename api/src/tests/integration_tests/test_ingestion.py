@@ -207,7 +207,7 @@ class TestRunJobsDueGate:
         db.commit()
 
     def _settleable_bet(self, db: Session) -> Bet:
-        user = make_user(db, balance=Decimal("90.00"))
+        user = make_user(db)
         fixture = make_fixture(db, status="FT", home_goals=2, away_goals=1)
         return make_bet(
             db,
