@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import (
@@ -29,7 +30,8 @@ from .queries import (
     get_user_bets,
     ClientSideError,
 )
-from .schemas import CreateBetRequest, FixtureResponse, LeagueOut
+from . import cup as cup_queries
+from .schemas import CreateBetRequest, CupSummary, FixtureResponse, LeagueOut
 from .pundit_schemas import AskPunditRequest
 from .pundit import build_pundit_context, is_email_allowed, stream_pundit_response
 
@@ -120,11 +122,13 @@ async def place_bet(
 async def get_my_bets(
     search: str | None = None,
     outcome: str | None = None,
+    cup_id: str | None = None,
     limit: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get all bets for the authenticated user"""
+    """Get bets for the authenticated user, scoped to a cup (defaults to the
+    current cup) so the client can page back through previous weeks."""
     if outcome:
         allowed = {e.value for e in BetOutcome}
         if outcome not in allowed:
@@ -132,7 +136,10 @@ async def get_my_bets(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid bet outcome: {outcome}",
             )
-    bets = get_user_bets(db, user.id, outcome, search, limit)
+    if cup_id is None:
+        current = cup_queries.get_current_cup(db, datetime.now(timezone.utc))
+        cup_id = current.id if current is not None else None
+    bets = get_user_bets(db, user.id, outcome, search, limit, cup_id)
     return {"bets": jsonable_encoder(bets)}
 
 
@@ -173,14 +180,107 @@ async def ask_pundit(
     )
 
 
+@router.get("/cup/current")
+async def get_current_cup_view(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        now = datetime.now(timezone.utc)
+        cup = cup_queries.get_current_cup(db, now)
+        balance = str(cup_queries.current_balance(db, user, now))
+        if cup is None:
+            return {
+                "cup": None,
+                "your_balance": balance,
+                "your_rank": None,
+                "leaderboard": [],
+            }
+        board = cup_queries.leaderboard(db, cup)
+        your_rank = next(
+            (row["rank"] for row in board if row["user_id"] == user.id), None
+        )
+        return {
+            "cup": CupSummary.model_validate(cup).model_dump(mode="json"),
+            "your_balance": balance,
+            "your_rank": your_rank,
+            "leaderboard": board,
+        }
+    except Exception:
+        logger.exception("Error fetching current cup")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching the current cup",
+        )
+
+
+@router.get("/cup/{cup_id}")
+async def get_cup_view(
+    cup_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        cup = cup_queries.get_cup_by_id(db, cup_id)
+        if cup is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Cup not found",
+            )
+        return {
+            "cup": CupSummary.model_validate(cup).model_dump(mode="json"),
+            "leaderboard": cup_queries.leaderboard(db, cup),
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Error fetching cup {cup_id}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching the cup",
+        )
+
+
+@router.get("/cups")
+async def list_cups_view(
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        cups = cup_queries.list_cups(db)
+        return {
+            "cups": [
+                CupSummary.model_validate(cup).model_dump(mode="json") for cup in cups
+            ]
+        }
+    except Exception:
+        logger.exception("Error listing cups")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while listing cups",
+        )
+
+
 @router.get("/me")
-async def get_me(user: User = Depends(get_current_user)) -> dict[str, Any]:
-    return {
-        "id": str(user.id),
-        "status": user.status,
-        "cognito_uuid": user.cognito_uuid,
-        "email": user.email,
-        "balance": str(user.balance),
-        "created_at": user.created_at,
-        "updated_at": user.updated_at,
-    }
+async def get_me(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        now = datetime.now(timezone.utc)
+        return {
+            "id": str(user.id),
+            "status": user.status,
+            "cognito_uuid": user.cognito_uuid,
+            "email": user.email,
+            "balance": str(cup_queries.current_balance(db, user, now)),
+            "cups_won": cup_queries.cups_won(db, user),
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+        }
+    except Exception:
+        logger.exception("Error fetching current user")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching the user",
+        )

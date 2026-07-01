@@ -42,3 +42,12 @@ class FixtureResponse(BaseModel):
     @field_serializer("home_odds", "away_odds", "draw_odds")
     def serialize_odds(self, value: Decimal | None) -> str | None:
         return str(value) if value is not None else None
+
+
+class CupSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    week_start: datetime
+    week_end: datetime
+    status: str

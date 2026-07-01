@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from ..utils.logging import logger
@@ -21,6 +23,11 @@ from .internal_queries import (
     fetch_voided_bets_to_settle,
     settle_bet,
     settle_voided_bet,
+    fetch_cups_to_close,
+    fetch_cup_backstop_bets,
+    count_undecided_bets_in_cup,
+    settle_cup,
+    mark_cup_closing,
 )
 
 
@@ -92,6 +99,35 @@ def run_settle_voided_bets(db: Session) -> None:
             logger.error(f"Error settling voided bet {bet.id}: {e}")
 
 
+def run_close_cups(db: Session) -> None:
+    now = datetime.now(timezone.utc)
+    cups = fetch_cups_to_close(db, now)
+    if not cups:
+        return
+
+    # (1) Resolve everything the normal settlement path can — finished fixtures
+    #     (win/lose) and explicitly-voided ones (refund) — before deciding
+    #     whether each cup can terminate.
+    run_settle_bets(db)
+    run_settle_voided_bets(db)
+
+    for cup in cups:
+        mark_cup_closing(db, cup)
+
+        # (2) Backstop: force-void bets whose fixture kicked off long ago but
+        #     whose status never resolved (stuck LIVE/SUSP/etc.) so the cup can
+        #     terminate rather than wait forever.
+        for bet in fetch_cup_backstop_bets(db, cup, now):
+            try:
+                settle_voided_bet(db, bet=bet)
+            except Exception as e:
+                logger.error(f"Error force-voiding stuck bet {bet.id}: {e}")
+
+        # (3) Only crown winners once no bets are still live.
+        if count_undecided_bets_in_cup(db, cup) == 0:
+            settle_cup(db, cup)
+
+
 JOB_REGISTRY = {
     "fetch_leagues": run_fetch_leagues,
     "fetch_fixtures": run_fetch_fixtures,
@@ -99,4 +135,5 @@ JOB_REGISTRY = {
     "fetch_fixture_updates": run_fetch_fixture_updates,
     "settle_bets": run_settle_bets,
     "settle_voided_bets": run_settle_voided_bets,
+    "close_cups": run_close_cups,
 }

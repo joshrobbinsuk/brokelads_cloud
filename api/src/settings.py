@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 
 CRON_AUTH_KEY = os.getenv("CRON_AUTH_KEY", None)
 DATABASE_URL = os.getenv("DATABASE_URL", None)
@@ -70,3 +71,8 @@ OUTCOME_STATUSES = ["FT", "AET", "PEN"]
 VOIDED_STATUSES = ["PST", "CANC", "ABD", "AWD", "WO"]
 N_NOT_STARTED_FIXTURES_TO_STORE = 15
 N_FIXTURES_PER_LEAGUE = 10
+
+# Weekly Cup
+CUP_STARTING_STAKE = Decimal("1000")
+CUP_BET_MAX_AGE_HOURS = 6
+CUP_TIMEZONE = "Europe/London"
