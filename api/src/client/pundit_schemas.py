@@ -18,7 +18,7 @@ class PunditConversationTurn(BaseModel):
 
 class AskPunditRequest(BaseModel):
     fixture_ids: list[str] = Field(min_length=1)
-    conversation: list[PunditConversationTurn] = Field(min_length=1, max_length=20)
+    conversation: list[PunditConversationTurn] = Field(min_length=1, max_length=200)
 
     @field_validator("fixture_ids")
     @classmethod
