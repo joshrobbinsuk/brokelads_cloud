@@ -11,11 +11,12 @@ from decimal import Decimal
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from src import settings
 from src.client import routes as routes_module
-from src.client.pundit_schemas import PunditConversationTurn
+from src.client.pundit_schemas import AskPunditRequest, PunditConversationTurn
 from src.client.queries import (
     fetch_visible_fixture_slate_by_ids,
     get_recent_user_bets_for_pundit,
@@ -243,6 +244,29 @@ class TestIsUnlimited:
         assert is_unlimited("A@B.COM ") is True
         assert is_unlimited("e@f.com") is False
         assert is_unlimited(None) is False
+
+
+class TestConversationLengthCap:
+    """The conversation cap is a sanity ceiling on a public endpoint, not a
+    product limit (the daily interaction cap bounds real usage)."""
+
+    @staticmethod
+    def _turns(count: int) -> list[dict[str, str]]:
+        return [{"role": "user", "content": "x"} for _ in range(count)]
+
+    def test_accepts_more_than_twenty_turns(self) -> None:
+        request = AskPunditRequest(
+            fixture_ids=["f1"],
+            conversation=self._turns(21),  # type: ignore[arg-type]
+        )
+        assert len(request.conversation) == 21
+
+    def test_rejects_more_than_two_hundred_turns(self) -> None:
+        with pytest.raises(ValidationError):
+            AskPunditRequest(
+                fixture_ids=["f1"],
+                conversation=self._turns(201),  # type: ignore[arg-type]
+            )
 
 
 def test_mid_stream_error_emits_error_then_done() -> None:
