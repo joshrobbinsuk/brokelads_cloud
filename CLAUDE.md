@@ -11,6 +11,8 @@ Three feature packages, each a deep module with a thin surface:
 
 Shared: `main.py` (app + router wiring), `models.py` (all SQLAlchemy models), `database.py` (`BaseModel`, engine, `get_db`), `settings.py` (env + domain constants), `utils/logging.py` (loguru).
 
+`dev/` is a **walled-off dev-only** package (the `python -m src.dev.seed` local seeder). It is NEVER imported by the running app — no wiring in `main.py`, no `if ENVIRONMENT == "dev"` in any production path. It only *calls into* the real functions from the outside, guarded by an internal prod-DB seatbelt. Keep it that way (a `src.dev` import from any non-test module is a bug).
+
 ## Data model (`models.py`)
 
 `User` (balance defaults 100.00, `status` ACTIVE/DISABLED/INVITED) → `Bet` (choice HOME/AWAY/DRAW, `outcome` UNDECIDED/WON/LOST/VOIDED) → `Fixture` (kick-off, odds, goals, `outcome` property, nullable `league_id` FK, nullable `venue` — API-Football returns a null venue for unscheduled/international fixtures, so it must ingest). `League` carries `rapid_api_id`, `name`/`display_name`, `active`, plus metadata (`logo`, `country`, `type`). `TransactionRecord` audits balance changes; `JobControl` gates each ingestion/settlement job by `enabled` + `min_interval_seconds`. UUID string PKs, timezone-aware `created_at`/`updated_at` on `BaseModel`.
@@ -48,6 +50,17 @@ uv venv --python 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.
 
 Format/lint via pre-commit: black (line-length 88, `api/src/` only) + ruff `--fix`. Run `pre-commit run --all-files`.
 
+Local seed (dev-only, mock data, drives the real ingestion + settlement path — needs a local DB, e.g. `docker-compose up`):
+
+```bash
+cd api
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bl_dev ENVIRONMENT=dev \
+  ADMIN_SESSION_SECRET=x .venv/bin/python -m src.dev.seed all
+# subcommands: fixtures | bets [--email <addr>] | resolve | all
+```
+
+`all` seeds an active seed league + 6 mock fixtures (with odds), places a spread of bets as a synthetic user, writes mock results, runs settlement, and prints per-bet outcomes + the entry balance before/after (proves WIN/LOSE/VOID). Idempotent (reserved `rapid_api_id` range); refuses to run against a non-local DB. Use it to give a local stack real data for smoke/verify.
+
 Full stack (DB + API + auto-migrate + hot reload) via Docker — see `LOCAL_DEV.md`:
 
 ```bash
@@ -69,7 +82,7 @@ Default branch is `dev`. GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-ch
 
 ## Tests
 
-`src/tests/` runs against an in-memory SQLite engine (a fresh one per test, see `conftest.py`) — no Postgres needed. `factories.py` builds entities. `unit_tests/` covers model properties/validators; `integration_tests/` covers `create_bet` rules and settlement (`settle_bet`/`settle_voided_bet`/`run_settle_bets`). Still uncovered: the FastAPI routes/auth dependencies, the admin UI, and the RapidAPI ingestion path (`external_calls.py` is unmocked).
+`src/tests/` runs against an in-memory SQLite engine (a fresh one per test, see `conftest.py`) — no Postgres needed. `factories.py` builds entities. `unit_tests/` covers model properties/validators; `integration_tests/` covers `create_bet` rules and settlement (`settle_bet`/`settle_voided_bet`/`run_settle_bets`). `test_seed.py` drives the dev seeder through the real fixture/odds/results **parse+write** path (schemas → `save_new_fixtures`/`update_fixtures`) plus the full bet→settlement loop, so the ingestion parse seam is now covered from `.model_validate` inward. Still uncovered: the FastAPI routes/auth dependencies, the admin UI, and the *live* RapidAPI HTTP layer (`external_calls.py` is unmocked — the seeder fakes the response, not the transport).
 
 ## Known gaps
 - `ADMIN_EMAIL` and the Cognito client/pool IDs are hardcoded (`settings.py`, `docker-compose.yml`) — fine for a demo, not for reuse.
