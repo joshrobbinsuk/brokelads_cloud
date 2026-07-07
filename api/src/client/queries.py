@@ -76,9 +76,9 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
 def set_username(db: Session, user: User, username: str) -> User:
     """Set or change a user's display name. Format is validated at the request
     schema; here we enforce case-insensitive uniqueness (excluding the caller's
-    own row, so changing only your casing succeeds). The DB unique constraint
-    is an exact-case backstop; a case-insensitive race is accepted at friends
-    scale (see CLAUDE.md Known gaps)."""
+    own row, so changing only your casing succeeds). The functional unique
+    index on lower(username) is the backstop — a concurrent race past this
+    pre-check surfaces as an IntegrityError/500, not a silent duplicate."""
     try:
         existing = (
             db.query(User)
