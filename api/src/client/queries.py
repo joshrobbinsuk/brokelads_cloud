@@ -74,16 +74,16 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
 
 
 def set_username(db: Session, user: User, username: str) -> User:
-    """Set a user's display name once. Format is validated at the request schema;
-    here we enforce set-once and case-insensitive uniqueness. The DB unique
-    constraint is an exact-case backstop; a case-insensitive race is accepted at
-    friends scale (see CLAUDE.md Known gaps)."""
+    """Set or change a user's display name. Format is validated at the request
+    schema; here we enforce case-insensitive uniqueness (excluding the caller's
+    own row, so changing only your casing succeeds). The DB unique constraint
+    is an exact-case backstop; a case-insensitive race is accepted at friends
+    scale (see CLAUDE.md Known gaps)."""
     try:
-        if user.username is not None:
-            raise ClientSideError("Username is already set")
-
         existing = (
-            db.query(User).filter(func.lower(User.username) == username.lower()).first()
+            db.query(User)
+            .filter(func.lower(User.username) == username.lower(), User.id != user.id)
+            .first()
         )
         if existing is not None:
             raise UsernameTakenError(username)
@@ -93,14 +93,29 @@ def set_username(db: Session, user: User, username: str) -> User:
         db.refresh(user)
         logger.info(f"User {user.email} set username {username}")
         return user
-    except (ClientSideError, UsernameTakenError):
-        # Normal domain rejections (taken / already set) — re-raise without the
-        # logger.exception below (they aren't faults) and without a rollback
-        # (they're detected before any write).
+    except UsernameTakenError:
+        # Normal domain rejection (taken) — re-raise without the logger.exception
+        # below (it isn't a fault) and without a rollback (detected before any
+        # write).
         raise
     except Exception:
         db.rollback()
         logger.exception(f"Error setting username for {user.email}")
+        raise
+
+
+def set_avatar(db: Session, user: User, avatar: str) -> User:
+    """Set a user's avatar. Membership in the valid id set is validated at the
+    request schema boundary (SetAvatarRequest)."""
+    try:
+        user.avatar = avatar
+        db.commit()
+        db.refresh(user)
+        logger.info(f"User {user.email} set avatar {avatar}")
+        return user
+    except Exception:
+        db.rollback()
+        logger.exception(f"Error setting avatar for {user.email}")
         raise
 
 

@@ -46,6 +46,7 @@ def test_me_falls_back_to_1000_and_zero_cups_won(client: TestClient) -> None:
     body = client.get("/client/me").json()
     assert body["balance"] == "1000"
     assert body["cups_won"] == 0
+    assert body["avatar"] is None
 
 
 def test_cup_current_shows_balance_rank_and_leaderboard(
@@ -53,8 +54,13 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
 ) -> None:
     cup = _current_cup(db)
     user.username = "me"
+    user.avatar = "fox-red"
     other = make_user(
-        db, email="rival@test.com", cognito_uuid="rival", username="rival"
+        db,
+        email="rival@test.com",
+        cognito_uuid="rival",
+        username="rival",
+        avatar="goat-teal",
     )
     make_cup_entry(db, cup=cup, user=other, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=user, balance=Decimal("900.00"))
@@ -67,6 +73,8 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
     assert body["your_rank"] == 2
     assert [row["username"] for row in body["leaderboard"]] == ["rival", "me"]
     assert body["leaderboard"][0]["balance"] == "1200.00"
+    assert body["leaderboard"][0]["avatar"] == "goat-teal"
+    assert body["leaderboard"][1]["avatar"] == "fox-red"
 
 
 def test_cup_current_when_no_cup_yet(client: TestClient) -> None:

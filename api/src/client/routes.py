@@ -30,6 +30,7 @@ from .queries import (
     get_user_bets,
     increment_pundit_usage,
     pundit_count_today,
+    set_avatar,
     set_username,
     ClientSideError,
     UsernameTakenError,
@@ -40,6 +41,7 @@ from .schemas import (
     CupSummary,
     FixtureResponse,
     LeagueOut,
+    SetAvatarRequest,
     SetUsernameRequest,
 )
 from .pundit_schemas import AskPunditRequest
@@ -286,6 +288,7 @@ async def get_me(
             "cognito_uuid": user.cognito_uuid,
             "email": user.email,
             "username": user.username,
+            "avatar": user.avatar,
             "balance": str(cup_queries.current_balance(db, user, now)),
             "cups_won": cup_queries.cups_won(db, user),
             "created_at": user.created_at,
@@ -313,14 +316,26 @@ async def set_my_username(
             status_code=http_status.HTTP_409_CONFLICT,
             detail="That username is already taken",
         )
-    except ClientSideError as e:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
     except Exception:
         logger.exception("Error setting username")
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while setting the username",
+        )
+
+
+@router.put("/me/avatar")
+async def set_my_avatar(
+    payload: SetAvatarRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        updated = set_avatar(db, user, payload.avatar)
+        return {"avatar": updated.avatar}
+    except Exception:
+        logger.exception("Error setting avatar")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while setting the avatar",
         )
