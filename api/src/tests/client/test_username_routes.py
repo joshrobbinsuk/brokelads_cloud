@@ -1,5 +1,5 @@
-"""Contract tests for PUT /client/me/username: happy path plus the 409 (taken),
-422 (bad format), and 400 (already set) mappings the frontend gate relies on."""
+"""Contract tests for PUT /client/me/username: happy path (including renames),
+plus the 409 (taken) and 422 (bad format) mappings the frontend relies on."""
 
 from typing import Iterator
 
@@ -53,9 +53,29 @@ def test_bad_format_returns_422(client: TestClient) -> None:
     assert resp.status_code == 422
 
 
-def test_second_set_returns_400(client: TestClient) -> None:
+def test_rename_succeeds(client: TestClient) -> None:
     client.put("/client/me/username", json={"username": "first"})
 
     resp = client.put("/client/me/username", json={"username": "second"})
 
-    assert resp.status_code == 400
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "second"
+    assert client.get("/client/me").json()["username"] == "second"
+
+
+def test_rename_to_taken_returns_409(client: TestClient, db: Session) -> None:
+    make_user(db, email="other@test.com", cognito_uuid="other", username="taken")
+    client.put("/client/me/username", json={"username": "first"})
+
+    resp = client.put("/client/me/username", json={"username": "taken"})
+
+    assert resp.status_code == 409
+
+
+def test_rename_own_casing_succeeds(client: TestClient) -> None:
+    client.put("/client/me/username", json={"username": "josh_r"})
+
+    resp = client.put("/client/me/username", json={"username": "JOSH_R"})
+
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "JOSH_R"

@@ -1,7 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 from ..models import FixtureResult
+from ..settings import AVATAR_IDS
 
 
 class CreateBetRequest(BaseModel):
@@ -12,6 +13,17 @@ class CreateBetRequest(BaseModel):
 
 class SetUsernameRequest(BaseModel):
     username: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9_]+$")
+
+
+class SetAvatarRequest(BaseModel):
+    avatar: str
+
+    @field_validator("avatar")
+    @classmethod
+    def validate_avatar(cls, value: str) -> str:
+        if value not in AVATAR_IDS:
+            raise ValueError(f"Unknown avatar id: {value}")
+        return value
 
 
 class LeagueOut(BaseModel):

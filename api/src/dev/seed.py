@@ -218,8 +218,13 @@ def _get_or_create_seed_user(db: Session) -> User:
             email=SEED_USER_EMAIL,
             cognito_uuid=SEED_USER_COGNITO_UUID,
             username="seed_bot",
+            avatar="fox-red",
         )
         db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif user.avatar is None:
+        user.avatar = "fox-red"
         db.commit()
         db.refresh(user)
     return user

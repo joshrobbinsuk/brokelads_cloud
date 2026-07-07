@@ -32,6 +32,7 @@ class PunditContext:
     system_prompt: str
     model: str
     user_id: str
+    username: str | None
     fixtures: list[dict[str, Any]]
     recent_bets: list[dict[str, Any]]
     conversation: list[dict[str, str]]
@@ -107,6 +108,7 @@ def build_pundit_context(
         system_prompt=PUNDIT_SYSTEM_PROMPT,
         model=OPENAI_MODEL,
         user_id=user.id,
+        username=user.username,
         fixtures=_build_fixture_summaries(fixtures),
         recent_bets=_build_recent_bet_summaries(recent_bets),
         conversation=[
@@ -122,6 +124,11 @@ def _build_responses_input(context: PunditContext) -> list[dict[str, str]]:
         f"VISIBLE FIXTURES (JSON):\n{json.dumps(context.fixtures)}\n\n"
         f"USER RECENT BETS (JSON):\n{json.dumps(context.recent_bets)}"
     )
+    if context.username:
+        preamble += (
+            f'\n\nThe punter you are talking to goes by "{context.username}" — '
+            "address them by name."
+        )
     items: list[dict[str, str]] = [{"role": "developer", "content": preamble}]
     items.extend(context.conversation)
     return items

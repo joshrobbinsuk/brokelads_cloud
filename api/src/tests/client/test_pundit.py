@@ -25,6 +25,7 @@ from src.client.utils.user import get_current_user
 from src.models import BetOutcome, FixtureResult, User
 from src.client.pundit import (
     PunditContext,
+    _build_responses_input,
     build_pundit_context,
     is_unlimited,
     stream_pundit_response,
@@ -213,6 +214,37 @@ def test_context_serializes_money_as_strings(db: Session) -> None:
     assert bet.id  # bet persisted
 
 
+class TestPunditUsername:
+    def test_context_carries_username(self, db: Session) -> None:
+        user = make_user(db, username="josh_r")
+
+        context = build_pundit_context(
+            user, [], [], [PunditConversationTurn(role="user", content="hi")]
+        )
+
+        assert context.username == "josh_r"
+
+    def test_preamble_addresses_user_by_name_when_set(self, db: Session) -> None:
+        user = make_user(db, username="josh_r")
+        context = build_pundit_context(
+            user, [], [], [PunditConversationTurn(role="user", content="hi")]
+        )
+
+        preamble = _build_responses_input(context)[0]["content"]
+
+        assert 'goes by "josh_r"' in preamble
+
+    def test_preamble_omits_name_line_when_username_null(self, db: Session) -> None:
+        user = make_user(db)
+        context = build_pundit_context(
+            user, [], [], [PunditConversationTurn(role="user", content="hi")]
+        )
+
+        preamble = _build_responses_input(context)[0]["content"]
+
+        assert "goes by" not in preamble
+
+
 class TestFetchVisibleFixtureSlateByIds:
     def test_preserves_request_order_and_dedupes(self, db: Session) -> None:
         league = make_league(db)
@@ -294,6 +326,7 @@ def test_mid_stream_error_emits_error_then_done() -> None:
             system_prompt="p",
             model="gpt-5-mini",
             user_id="u1",
+            username=None,
             fixtures=[],
             recent_bets=[],
             conversation=[{"role": "user", "content": "hi"}],
@@ -330,6 +363,7 @@ def test_disconnect_closes_completion_stream() -> None:
             system_prompt="p",
             model="gpt-5-mini",
             user_id="u1",
+            username=None,
             fixtures=[],
             recent_bets=[],
             conversation=[{"role": "user", "content": "hi"}],
@@ -369,6 +403,7 @@ def test_source_links_stripped_from_stream() -> None:
         system_prompt="p",
         model="gpt-5-mini",
         user_id="u1",
+        username=None,
         fixtures=[],
         recent_bets=[],
         conversation=[{"role": "user", "content": "hi"}],

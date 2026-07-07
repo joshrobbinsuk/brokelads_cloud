@@ -64,9 +64,13 @@ class User(BaseModel):
     )
     cognito_uuid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    # Null until the user picks one at the first-run gate; set-once thereafter.
-    # Length limit is enforced at the request boundary (SetUsernameRequest).
+    # Freely changeable; case-insensitively unique (see the index above). Length
+    # limit is enforced at the request boundary (SetUsernameRequest).
     username: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # `<icon>-<colour>` id from the fixed set in settings.AVATAR_IDS. Null = never
+    # chosen -> FE renders a fallback disc. Validated at the request boundary
+    # (SetAvatarRequest), not here.
+    avatar: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="user")
 

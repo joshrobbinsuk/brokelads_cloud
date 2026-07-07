@@ -76,3 +76,35 @@ N_FIXTURES_PER_LEAGUE = 20
 CUP_STARTING_STAKE = Decimal("1000")
 CUP_BET_MAX_AGE_HOURS = 6
 CUP_TIMEZONE = "Europe/London"
+
+# Profile avatars: emoji-on-colour-disc, no image assets/uploads. Stored as one
+# string id "<icon>-<colour>" on User.avatar. Shared contract with the FE —
+# keep both sides in lockstep.
+AVATAR_ICONS = {
+    "ball": "⚽",
+    "fox": "🦊",
+    "goat": "🐐",
+    "beer": "🍺",
+    "fire": "🔥",
+    "huff": "😤",
+    "tophat": "🎩",
+    "crown": "👑",
+    "lion": "🦁",
+    "dog": "🐶",
+    "frog": "🐸",
+    "cold": "🥶",
+    "chicken": "🍗",
+    "dart": "🎯",
+    "glove": "🧤",
+    "rocket": "🚀",
+}
+AVATAR_COLOURS = {
+    "red": "#ef4444",
+    "blue": "#3b82f6",
+    "green": "#22c55e",
+    "gold": "#f59e0b",
+    "purple": "#a855f7",
+    "teal": "#14b8a6",
+    "white": "#ffffff",
+}
+AVATAR_IDS = {f"{icon}-{colour}" for icon in AVATAR_ICONS for colour in AVATAR_COLOURS}
