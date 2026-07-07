@@ -3,13 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from sqladmin import Admin
+from sqladmin.authentication import AuthenticationBackend
 
 from .admin.auth import AdminAuth, oidc_callback
 from .admin.admin_views import register_admin_views
 from .rapid_api.routes import router as rapid_api_router
 from .client.routes import router as client_router
 from .database import engine
-from .settings import ADMIN_SESSION_SECRET
+from .settings import ADMIN_SESSION_SECRET, LOCAL_ADMIN_BYPASS
 
 app = FastAPI(title="BL API", description="Backend API for BL project", version="0.0.1")
 app.add_middleware(
@@ -26,12 +27,15 @@ app.add_middleware(SessionMiddleware, secret_key=ADMIN_SESSION_SECRET)
 app.include_router(rapid_api_router)
 app.include_router(client_router)
 
-admin = Admin(
-    app,
-    engine,
-    title="BL Admin",
-    authentication_backend=AdminAuth(secret_key=ADMIN_SESSION_SECRET),
-)
+admin_auth: AuthenticationBackend
+if LOCAL_ADMIN_BYPASS:
+    from .dev.admin_auth import LocalAdminAuth
+
+    admin_auth = LocalAdminAuth(secret_key=ADMIN_SESSION_SECRET)
+else:
+    admin_auth = AdminAuth(secret_key=ADMIN_SESSION_SECRET)
+
+admin = Admin(app, engine, title="BL Admin", authentication_backend=admin_auth)
 register_admin_views(admin)
 
 

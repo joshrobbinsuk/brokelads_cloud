@@ -85,22 +85,34 @@ def test_ask_pundit_requires_auth(client: TestClient, db: Session) -> None:
     assert resp.status_code == 403
 
 
-def test_rejects_fixtures_outside_visible_slate(
-    client: TestClient, app: FastAPI, db: Session
+def test_drops_fixtures_outside_visible_slate(
+    client: TestClient, app: FastAPI, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user = make_user(db)
     _override_user(app, user)
+    visible = make_fixture(db, status="NS", league_id=make_league(db).id)
     finished = make_fixture(db, status="FT", home_goals=1, away_goals=0)
+
+    grounded: dict[str, list[str]] = {}
+
+    async def capturing_stream(context: PunditContext) -> AsyncGenerator[str, None]:
+        grounded["fixture_ids"] = [f["fixture_id"] for f in context.fixtures]
+        yield "ok"
+
+    def patched(context: PunditContext) -> object:
+        return stream_pundit_response(context, completion_stream=capturing_stream)
+
+    monkeypatch.setattr(routes_module, "stream_pundit_response", patched)
 
     resp = client.post(
         "/client/pundit",
         json={
-            "fixture_ids": [finished.id],
+            "fixture_ids": [visible.id, finished.id],
             "conversation": [{"role": "user", "content": "Thoughts?"}],
         },
     )
-    assert resp.status_code == 400
-    assert finished.id in resp.json()["detail"]
+    assert resp.status_code == 200
+    assert grounded["fixture_ids"] == [visible.id]
 
 
 def test_streams_expected_sse_contract(

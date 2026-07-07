@@ -4,6 +4,7 @@ from starlette.responses import Response
 
 from ..utils.logging import logger
 from ..rapid_api.jobs import (
+    run_fetch_leagues,
     run_fetch_fixtures,
     run_fetch_odds,
     run_fetch_fixture_updates,
@@ -25,6 +26,26 @@ class RapidAPIAdmin(BaseView):
         return await self.templates.TemplateResponse(
             request, "rapid-api.html", {"message": "", "success": True}
         )
+
+    @expose("/rapid-api/run/leagues", methods=["GET"])
+    async def run_leagues(self, request: Request) -> Response:
+        db = SessionLocal()
+        try:
+            run_fetch_leagues(db)
+            return await self.templates.TemplateResponse(
+                request,
+                "rapid-api.html",
+                {"message": "Leagues job ran successfully.", "success": True},
+            )
+        except Exception as e:
+            logger.error(f"Leagues job failed: {e}", exc_info=True)
+            return await self.templates.TemplateResponse(
+                request,
+                "rapid-api.html",
+                {"message": f"Leagues job failed: {e}", "success": False},
+            )
+        finally:
+            db.close()
 
     @expose("/rapid-api/run/fixtures", methods=["GET"])
     async def run_fixtures(self, request: Request) -> Response:

@@ -173,16 +173,10 @@ async def ask_pundit(
             )
         increment_pundit_usage(db, user, today)
 
+    # Ids the client no longer sees as bettable (kicked off, week rolled over,
+    # odds pulled) simply fall out of the slate here — the pundit reasons over
+    # whatever is still visible rather than rejecting the whole conversation.
     fixtures = fetch_visible_fixture_slate_by_ids(db, request.fixture_ids)
-    found_ids = {fixture.id for fixture in fixtures}
-    missing = [
-        fixture_id for fixture_id in request.fixture_ids if fixture_id not in found_ids
-    ]
-    if missing:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=f"Fixtures not in the current visible slate: {missing}",
-        )
 
     recent_bets = get_recent_user_bets_for_pundit(db, user.id)
     context = build_pundit_context(user, fixtures, recent_bets, request.conversation)
