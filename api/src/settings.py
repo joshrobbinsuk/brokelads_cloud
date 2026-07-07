@@ -105,5 +105,6 @@ AVATAR_COLOURS = {
     "gold": "#f59e0b",
     "purple": "#a855f7",
     "teal": "#14b8a6",
+    "white": "#ffffff",
 }
 AVATAR_IDS = {f"{icon}-{colour}" for icon in AVATAR_ICONS for colour in AVATAR_COLOURS}
