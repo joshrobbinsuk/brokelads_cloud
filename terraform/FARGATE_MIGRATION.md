@@ -1,6 +1,12 @@
 # Backend compute migration: App Runner → ECS Fargate + ALB
 
-**Status:** planned, not started. Written 2026-06-25.
+> **⛔ SUPERSEDED — 2026-07-08.** We're moving backend compute to **GCP Cloud Run +
+> serverless Postgres** instead of ECS Fargate, while **keeping AWS Cognito**. The
+> driver is cost: Cloud Run scales to zero, whereas Fargate's always-on ALB + task
+> is lateral-to-worse. This Fargate plan is retained for reference only; a GCP
+> Cloud Run plan will replace it.
+
+**Status:** superseded (was: planned, not started; written 2026-06-25).
 
 ## Why
 
