@@ -77,6 +77,21 @@ module "cognito" {
   admin_password = var.admin_password
 }
 
+# Lets the API hard-delete a user's Cognito account (admin panel "delete user").
+resource "aws_iam_role_policy" "apprunner_cognito_delete" {
+  name = "${var.project}-cognito-admin-delete"
+  role = module.apprunner.instance_role_id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "cognito-idp:AdminDeleteUser"
+      Resource = module.cognito.user_pool_arn
+    }]
+  })
+}
+
 module "lambda" {
   source = "../modules/lambda"
 
