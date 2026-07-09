@@ -23,6 +23,12 @@ resource "neon_role" "app" {
   project_id = neon_project.this.id
   branch_id  = neon_branch.this.id
   name       = "brokelads"
+
+  # Neon rejects role creation on a branch that has no read-write endpoint yet
+  # ("no read-write endpoint for branch"). The endpoint and role otherwise
+  # create in parallel — force the endpoint first. (database owner_name -> role,
+  # so the database follows transitively.)
+  depends_on = [neon_endpoint.app]
 }
 
 resource "neon_database" "app" {
