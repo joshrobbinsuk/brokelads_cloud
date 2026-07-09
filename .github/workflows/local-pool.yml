@@ -1,0 +1,47 @@
+name: Local Cognito Pool
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    name: Provision Local Cognito Pool
+    runs-on: ubuntu-latest
+
+    env:
+      TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.0"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Terraform Init
+        working-directory: terraform/local
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: terraform/local
+        run: terraform plan
+
+      - name: Terraform Apply
+        working-directory: terraform/local
+        run: terraform apply -auto-approve
+
+      - name: Output pool ids
+        working-directory: terraform/local
+        run: |
+          echo "**Local Cognito pool created.**" >> $GITHUB_STEP_SUMMARY
+          echo "USER_POOL_ID: $(terraform output -raw user_pool_id)" >> $GITHUB_STEP_SUMMARY
+          echo "COGNITO_CLIENT_ID: $(terraform output -raw cognito_client_id)" >> $GITHUB_STEP_SUMMARY
