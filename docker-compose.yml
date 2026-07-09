@@ -39,8 +39,8 @@ services:
       # client; that is out of scope here (deploy patches the App Runner callback, not localhost).
       ADMIN_COGNITO_CLIENT_ID: ${ADMIN_COGNITO_CLIENT_ID}
       ADMIN_COGNITO_CLIENT_SECRET: ${ADMIN_COGNITO_CLIENT_SECRET}
-      COGNITO_CLIENT_ID: 2mg2ph3ir84leu2s42pramgjfd
-      USER_POOL_ID: eu-west-2_HSV4yaBye
+      COGNITO_CLIENT_ID: 4an05dup28ettgk1k436qqm7f2
+      USER_POOL_ID: eu-west-2_KZI5I5v4Q
       # Hard-deleting a user also removes their Cognito account (boto3). The cloud
       # gets creds from the instance role; locally supply an access key here to
       # exercise the Cognito half — without these, a delete errors before the DB.
