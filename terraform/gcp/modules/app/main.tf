@@ -181,14 +181,18 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
   member   = "allUsers"
 }
 
-# Ingestion cron: ~5 min, POSTs to the ingestion endpoint with the shared
+# Ingestion cron: every minute, POSTs to the ingestion endpoint with the shared
 # X-Cron-Auth-Key header (the app's own auth — the service itself is public,
 # so no OIDC identity token is required here).
 resource "google_cloud_scheduler_job" "run_jobs" {
-  name      = "${local.name_prefix}-run-jobs"
-  project   = var.gcp_project_id
-  region    = var.region
-  schedule  = "*/5 * * * *"
+  name    = "${local.name_prefix}-run-jobs"
+  project = var.gcp_project_id
+  region  = var.region
+  # Every minute: jobs self-gate on their own min_interval_seconds, and some are
+  # tuned to a 1-min cadence — the trigger is the floor, so it must match the
+  # tightest job. On Cloud Run (request-billed, free tier) this is ~free, unlike
+  # App Runner's per-minute vCPU billing which is why it was briefly relaxed to 5.
+  schedule  = "* * * * *"
   time_zone = "Etc/UTC"
 
   http_target {
