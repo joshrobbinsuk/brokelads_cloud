@@ -39,19 +39,17 @@ jobs:
         working-directory: terraform/cognito
         run: terraform apply -auto-approve
 
-      - name: Print pool ids (set these as GitHub secrets)
+      - name: Pool summary
         working-directory: terraform/cognito
         run: |
           {
-            echo "**Fresh Cognito pool provisioned.** Set these as repo secrets for the GCP deploy:"
+            echo "**Fresh Cognito pool provisioned.**"
             echo ""
-            echo "- \`USER_POOL_ID\` **and** \`COGNITO_ADMIN_POOL_ID\` = \`$(terraform output -raw user_pool_id)\`"
-            echo "- \`COGNITO_CLIENT_ID\` = \`$(terraform output -raw cognito_client_id)\`"
-            echo "- \`ADMIN_COGNITO_CLIENT_ID\` **and** \`COGNITO_ADMIN_CLIENT_ID\` = \`$(terraform output -raw admin_client_id)\`"
+            echo "- User pool: \`$(terraform output -raw user_pool_id)\`"
+            echo "- Frontend client: \`$(terraform output -raw cognito_client_id)\`"
+            echo "- Admin client: \`$(terraform output -raw admin_client_id)\`"
             echo ""
-            echo "\`ADMIN_COGNITO_CLIENT_SECRET\` is sensitive and is NOT printed here."
-            echo "Read it locally and set it:"
-            echo '```'
-            echo "cd terraform/cognito && terraform init && gh secret set ADMIN_COGNITO_CLIENT_SECRET --body \"\$(terraform output -raw admin_client_secret)\""
-            echo '```'
+            echo "Nothing to copy — the GCP app stack reads these from this stack's"
+            echo "remote state (\`bl/cognito\`) at apply time. This workflow is a one-off:"
+            echo "the pool now persists across app teardown/redeploy."
           } >> "$GITHUB_STEP_SUMMARY"
