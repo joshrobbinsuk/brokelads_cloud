@@ -26,19 +26,8 @@ variable "neon_region_id" {
   default     = "aws-eu-west-2"
 }
 
-# --- Cognito (extracted AWS stack; ids passed in, client secret is sensitive) ---
-
-variable "user_pool_id" {
-  type = string
-}
-
-variable "cognito_client_id" {
-  type = string
-}
-
-variable "admin_cognito_client_id" {
-  type = string
-}
+# --- Cognito ids are NOT vars here: this stack reads them straight from the
+# standalone Cognito stack's remote state (see the data source in main.tf). ---
 
 variable "openai_model" {
   type    = string
@@ -57,17 +46,7 @@ variable "openai_api_key" {
   sensitive = true
 }
 
-variable "cron_auth_key" {
-  type      = string
-  sensitive = true
-}
-
 variable "admin_session_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "admin_cognito_client_secret" {
   type      = string
   sensitive = true
 }
@@ -80,4 +59,23 @@ variable "aws_access_key_id" {
 variable "aws_secret_access_key" {
   type      = string
   sensitive = true
+}
+
+# --- Vercel ---
+
+variable "vercel_api_token" {
+  description = "Vercel API token used to manage frontend project environment variables"
+  type        = string
+  sensitive   = true
+}
+
+variable "vercel_project_id" {
+  description = "ID of the existing Vercel project for the frontend (referenced, never created/destroyed here)"
+  type        = string
+}
+
+variable "vercel_team_id" {
+  description = "Vercel team ID owning the project; null for a personal account"
+  type        = string
+  default     = null
 }

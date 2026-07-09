@@ -8,6 +8,14 @@ terraform {
       source  = "kislerdm/neon"
       version = ">= 0.13, < 1.0"
     }
+    vercel = {
+      source  = "vercel/vercel"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -29,12 +37,20 @@ locals {
     DATABASE_URL                = local.database_url
     RAPID_API_KEY               = var.rapid_api_key
     OPENAI_API_KEY              = var.openai_api_key
-    CRON_AUTH_KEY               = var.cron_auth_key
+    CRON_AUTH_KEY               = random_password.cron_auth_key.result
     ADMIN_SESSION_SECRET        = var.admin_session_secret
     ADMIN_COGNITO_CLIENT_SECRET = var.admin_cognito_client_secret
     AWS_ACCESS_KEY_ID           = var.aws_access_key_id
     AWS_SECRET_ACCESS_KEY       = var.aws_secret_access_key
   }
+}
+
+# Self-generated, mirroring the AWS scheduler module's random_password —
+# shared between the Cloud Run secret env and the Cloud Scheduler header
+# below, so nothing needs to feed it in from CI.
+resource "random_password" "cron_auth_key" {
+  length  = 32
+  special = false
 }
 
 # The app owns enabling its own APIs (mirrors the AWS side, where CI runs
@@ -180,7 +196,7 @@ resource "google_cloud_scheduler_job" "run_jobs" {
     uri         = "${google_cloud_run_v2_service.api.uri}/rapid-api/run-jobs"
 
     headers = {
-      "X-Cron-Auth-Key" = var.cron_auth_key
+      "X-Cron-Auth-Key" = random_password.cron_auth_key.result
     }
   }
 

@@ -30,7 +30,9 @@ variable "image" {
   type        = string
 }
 
-# --- Cognito (stays on AWS; ids are not secret, client secret is) ---
+# --- Cognito (stays on AWS, in its own standalone stack; the caller reads
+# these from that stack's remote state — never fed in directly by CI). Ids
+# are not secret, the admin client secret is. ---
 
 variable "user_pool_id" {
   description = "AWS Cognito user pool ID (frontend/client pool)"
@@ -67,12 +69,6 @@ variable "openai_api_key" {
   sensitive   = true
 }
 
-variable "cron_auth_key" {
-  description = "Shared secret Cloud Scheduler sends as X-Cron-Auth-Key to authenticate cron calls to /rapid-api/run-jobs"
-  type        = string
-  sensitive   = true
-}
-
 variable "admin_session_secret" {
   description = "Secret used to sign admin panel sessions"
   type        = string
@@ -103,4 +99,23 @@ variable "neon_region_id" {
   description = "Neon region id for the project (aws-eu-west-2 keeps data alongside the Cognito pool in London)"
   type        = string
   default     = "aws-eu-west-2"
+}
+
+# --- Vercel (frontend env vars, mirrors the AWS stack's vercel.tf) ---
+
+variable "vercel_api_token" {
+  description = "Vercel API token used to manage frontend project environment variables"
+  type        = string
+  sensitive   = true
+}
+
+variable "vercel_project_id" {
+  description = "ID of the existing Vercel project for the frontend (referenced, never created/destroyed here)"
+  type        = string
+}
+
+variable "vercel_team_id" {
+  description = "Vercel team ID owning the project; null for a personal account"
+  type        = string
+  default     = null
 }
