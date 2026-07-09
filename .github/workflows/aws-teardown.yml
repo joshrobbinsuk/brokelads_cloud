@@ -1,0 +1,65 @@
+# One-off teardown of the retired AWS dev stack (App Runner + RDS + old bl-dev
+# Cognito pool + scheduler + lambda), after the GCP migration. IRREVERSIBLE.
+# workflow_dispatch-only; requires typing "destroy" to run.
+#
+# It first `state rm`s the Vercel env-var resources, because those actual Vercel
+# vars are now managed by the GCP app stack — without this, destroy would delete
+# the live FE's config. Cognito (terraform/cognito) and the local pool
+# (terraform/local) are SEPARATE stacks and untouched.
+name: AWS Teardown (one-off)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to tear down the old AWS stack. IRREVERSIBLE — kills the rollback.'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  teardown:
+    name: Destroy the retired AWS dev stack
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'destroy' }}
+
+    env:
+      TF_VAR_image_tag: destroy
+      TF_VAR_rapid_api_key: ${{ secrets.RAPID_API_KEY }}
+      TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+      TF_VAR_admin_session_secret: ${{ secrets.ADMIN_SESSION_SECRET }}
+      TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
+      TF_VAR_vercel_api_token: ${{ secrets.VERCEL_API_TOKEN }}
+      TF_VAR_vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.6"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Terraform Init
+        working-directory: terraform/dev
+        run: terraform init
+
+      - name: Release the Vercel env vars (now GCP-owned) from this stack's state
+        working-directory: terraform/dev
+        run: |
+          for r in api_url user_pool_id user_pool_client_id region; do
+            terraform state rm "vercel_project_environment_variable.$r" || true
+          done
+
+      - name: Terraform Destroy
+        working-directory: terraform/dev
+        run: terraform destroy -auto-approve
