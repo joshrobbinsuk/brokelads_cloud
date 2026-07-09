@@ -1,6 +1,6 @@
 # brokelads_cloud — backend
 
-FastAPI + PostgreSQL backend for the BrokeLads sports-betting demo. Ingests football fixtures/odds from API-Football (RapidAPI), lets authenticated users place and settle bets, and ships to AWS via Terraform. Frontend lives in the sibling `bl-fe` repo — see `../CLAUDE.md` for how they run together.
+FastAPI + PostgreSQL backend for the BrokeLads sports-betting demo. Ingests football fixtures/odds from API-Football (RapidAPI), lets authenticated users place and settle bets, and deploys to **GCP** (Cloud Run + Neon Postgres) via Terraform; **AWS Cognito** stays for auth. Frontend lives in the sibling `bl-fe` repo — see `../CLAUDE.md` for how they run together.
 
 ## Layout (`api/src/`)
 
@@ -78,7 +78,9 @@ docker-compose exec api alembic upgrade head    # also runs automatically on con
 
 ## Deploy & branches
 
-Default branch is `dev`. GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-checks.yml`); push→`dev` builds the image and Terraform-applies to the dev AWS env (`dev.yml`); merge→`main` → prod. Feature branches: `feature/<slug>`.
+Default branch is `dev`. Runs on **GCP** — Cloud Run + Neon Postgres, provisioned by Terraform in `terraform/gcp/`; **AWS Cognito** stays for auth (its own stack, `terraform/cognito/`, plus `terraform/local/` for local dev). GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-checks.yml`); push→`dev` builds the image, pushes to Artifact Registry, and Terraform-applies the GCP dev stack (`gcp-deploy.yml`, **keyless via Workload Identity Federation** — WIF/state bucket live in the `tf_bootstrap` repo). That deploy also sets the FE's Vercel env vars (`vercel.tf`) + fires the rebuild hook, so a redeploy re-wires the frontend with no manual step. `prod` (`terraform/gcp/prod`) is scaffolded but not yet wired for deploy. Feature branches: `feature/<slug>`.
+
+The retired AWS App Runner + RDS stack is archived under `terraform/aws/` (reference only; tag `aws-baseline`). Full migration record: `terraform/GCP_MIGRATION.md`.
 
 ## Tests
 
@@ -87,5 +89,5 @@ Default branch is `dev`. GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-ch
 ## Known gaps
 - `ADMIN_EMAIL` and the Cognito client/pool IDs are hardcoded (`settings.py`, `docker-compose.yml`) — fine for a demo, not for reuse.
 - `functions/agent/main.py` is a stub handler.
-- **Hard-delete user** (`accounts.delete_user`, wired to the SQLAdmin user list's delete button) removes the Cognito account (boto3 `AdminDeleteUser`) then cascade-deletes their DB rows (transactions → bets → cup entries → pundit usage → user) in one transaction. Needs `cognito-idp:AdminDeleteUser` (granted to the App Runner instance role in `terraform/dev/main.tf`); **locally it needs AWS creds in the env** (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in docker-compose) or the delete errors before touching the DB. A Cognito account that is already absent isn't fatal — the DB rows still go and the admin gets a warning alert.
+- **Hard-delete user** (`accounts.delete_user`, wired to the SQLAdmin user list's delete button) removes the Cognito account (boto3 `AdminDeleteUser`) then cascade-deletes their DB rows (transactions → bets → cup entries → pundit usage → user) in one transaction. Needs `cognito-idp:AdminDeleteUser`; the app authenticates to AWS with `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — injected on Cloud Run from Secret Manager, and **locally via docker-compose** — or the delete errors before touching the DB. A Cognito account that is already absent isn't fatal — the DB rows still go and the admin gets a warning alert.
 - **Cup betting is not concurrency-hardened** (accepted for friends-scale v1): `create_bet`'s balance-check-then-`entry.debit` isn't row-locked, so two truly-simultaneous bets on the same `CupEntry` could overspend it; and the `get_or_create` of a cup/entry can lose a race on the unique constraint, surfacing a transient 500 (rolls back cleanly, self-heals on retry). Harden with `SELECT … FOR UPDATE` + an `IntegrityError` retry if real concurrent load appears.
