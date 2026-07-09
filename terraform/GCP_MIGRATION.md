@@ -86,12 +86,13 @@ Run injects them from Secret Manager). No app code changes.
 ## Deployer permissions — RESOLVED
 
 The deployer SA gets a single **generic** project role at bootstrap
-(`deployer_role`, default `roles/editor`), so the GCP app **stands itself up**
+(`deployer_role`, default `roles/owner`), so the GCP app **stands itself up**
 exactly like the AWS side (whose CI runs as a full admin) — no separate
-owner-applied grants step. It's generic (not `run.admin`/etc.), so the bootstrap
-stays app-agnostic; and via keyless WIF + branch-pinning it's safer than the AWS
-static admin key. Dial to `roles/owner` only if a stack needs project-level IAM;
-tighten toward least-privilege as a later pass.
+owner-applied grants step. Owner (not `editor`) because the app stack sets
+resource-level IAM — the public Cloud Run invoker binding and the runtime SA's
+secret access — and `editor` can't set IAM policy at all. It's still generic
+(not `run.admin`/etc.), so the bootstrap stays app-agnostic; and via keyless WIF
++ branch-pinning it's safer than the AWS static admin key.
 
 ## Deploy workflow (new `.github/workflows/gcp-deploy.yml`)
 
