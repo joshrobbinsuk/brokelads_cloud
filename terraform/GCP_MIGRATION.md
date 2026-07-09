@@ -4,7 +4,9 @@
 flat cost + loses free HTTPS). This is the plan of record for moving BrokeLads
 compute + data off AWS to GCP, **keeping Cognito on AWS**.
 
-Status: planning. Bootstrap shipped (`tf_bootstrap` PR #1). App stack next.
+Status: **COMPLETE (2026-07-09)** — live on GCP (Cloud Run + Neon), AWS App
+Runner + RDS destroyed, old AWS stack archived to `terraform/aws/` (reference
+only), tag `aws-baseline` marks the last all-AWS-live commit.
 
 ---
 
