@@ -6,6 +6,11 @@ resource "neon_project" "this" {
   name       = local.name_prefix
   region_id  = var.neon_region_id
   pg_version = 16
+
+  # The provider defaults PITR retention to 86400s (1 day), which exceeds this
+  # Neon tier's 21600s (6h) cap and fails the apply. A fresh-start demo doesn't
+  # need much history — keep a small window, comfortably under the cap.
+  history_retention_seconds = 3600
 }
 
 resource "neon_branch" "this" {
