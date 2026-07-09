@@ -46,7 +46,9 @@ Cloud Scheduler (~5m) ──X-Cron-Auth-Key──> POST /rapid-api/run-jobs
 App-agnostic foundation, applied once locally with owner creds:
 - GCS Terraform state bucket (versioned, `prevent_destroy`).
 - WIF (GitHub OIDC → deployer SA), pinned to repo + `dev` branch.
-- Deployer SA granted **only** state-bucket access. **App roles are NOT here.**
+- Deployer SA granted one **generic** project role (`deployer_role`, default
+  `roles/editor`) so it can stand up app stacks itself — like AWS CI-as-admin,
+  but keyless + branch-pinned. Generic, not app-specific.
 
 Outputs consumed downstream: `state_bucket_name`, `workload_identity_provider`,
 `deployer_service_account_email`.
@@ -69,7 +71,6 @@ terraform/gcp/
   dev/                    # backend "gcs" prefix brokelads/dev — LIVE
     main.tf, backend.tf, variables.tf, outputs.tf
   prod/                   # backend "gcs" prefix brokelads/prod — SCAFFOLD, never applied
-  iam/                    # OPEN DECISION below — deployer's app-role grants
 ```
 
 **Cloud Run service env** (from the current App Runner env): `DATABASE_URL`
@@ -82,20 +83,15 @@ Run injects them from Secret Manager). No app code changes.
 **Neon provider:** verify current provider source + resource names before writing
 (community `kislerdm/neon` vs any official). API key from GitHub secret `NEON_API_KEY`.
 
-## OPEN DECISION — how the deployer gets its app roles
+## Deployer permissions — RESOLVED
 
-The bootstrap deliberately gives the deployer SA only state access, so something
-must grant it `run.admin` / `artifactregistry.admin` / `cloudscheduler.admin` /
-`secretmanager.admin` / `iam.serviceAccountUser` (+ create a runtime SA).
-
-- **(A, recommended) `terraform/gcp/iam` stack, applied once by Josh (owner creds).**
-  CI never holds IAM-admin power; app roles live in the app domain, not the generic
-  bootstrap. One documented privileged step, then all deploys run in CI.
-- **(B) Fold the grants into the app stack + give the deployer `projectIamAdmin`
-  at bootstrap.** Fewer stacks, but hands CI a privilege-escalation lever and
-  re-leaks an app concern toward the bootstrap. Rejected unless Josh prefers it.
-
-Default: **A**.
+The deployer SA gets a single **generic** project role at bootstrap
+(`deployer_role`, default `roles/editor`), so the GCP app **stands itself up**
+exactly like the AWS side (whose CI runs as a full admin) — no separate
+owner-applied grants step. It's generic (not `run.admin`/etc.), so the bootstrap
+stays app-agnostic; and via keyless WIF + branch-pinning it's safer than the AWS
+static admin key. Dial to `roles/owner` only if a stack needs project-level IAM;
+tighten toward least-privilege as a later pass.
 
 ## Deploy workflow (new `.github/workflows/gcp-deploy.yml`)
 
@@ -108,12 +104,11 @@ Replaces `dev.yml`'s AWS path. On push to `dev`: `google-github-actions/auth`
 
 1. Apply bootstrap (done-by-Josh) → outputs.
 2. Apply the fresh **Cognito** stack (AWS) → new pool/client ids.
-3. Owner-apply `gcp/iam` (decision A) → deployer can provision.
-4. CI applies `gcp/dev` → Cloud Run live on an empty Neon DB; seed re-ingests.
-5. Smoke-test the Cloud Run URL directly (login round-trip vs the new pool).
-6. **Flip** FE `NEXT_PUBLIC_API_URL` → Cloud Run URL; repoint FE Cognito ids.
-7. Verify end-to-end on the real FE.
-8. **Destroy AWS**: `terraform destroy` the App Runner + RDS + scheduler stack
+3. CI applies `gcp/dev` → Cloud Run live on an empty Neon DB; seed re-ingests.
+4. Smoke-test the Cloud Run URL directly (login round-trip vs the new pool).
+5. **Flip** FE `NEXT_PUBLIC_API_URL` → Cloud Run URL; repoint FE Cognito ids.
+6. Verify end-to-end on the real FE.
+7. **Destroy AWS**: `terraform destroy` the App Runner + RDS + scheduler stack
    (stops ~$35/mo). Keep the code.
 
 ## AWS wind-down (after cutover proven healthy)
