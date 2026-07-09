@@ -46,15 +46,9 @@ resource "neon_endpoint" "app" {
 }
 
 locals {
-  # Neon's pooled hostname convention inserts "-pooler" before the first dot
-  # of the endpoint host (e.g. ep-foo.eu-west-2.aws.neon.tech ->
-  # ep-foo-pooler.eu-west-2.aws.neon.tech) — see
-  # https://neon.com/docs/connect/connect-from-any-app. The provider doesn't
-  # expose a separate pooled-host attribute on neon_endpoint, so this is
-  # constructed rather than read directly; verify against the Neon console
-  # after the first apply.
-  neon_host_parts  = split(".", neon_endpoint.app.host)
-  neon_pooler_host = format("%s-pooler.%s", local.neon_host_parts[0], join(".", slice(local.neon_host_parts, 1, length(local.neon_host_parts))))
-
-  database_url = "postgresql://${neon_role.app.name}:${urlencode(neon_role.app.password)}@${local.neon_pooler_host}/${neon_database.app.name}?sslmode=require"
+  # With pooler_enabled = true, neon_endpoint.host ALREADY returns the pooled
+  # host (ep-...-pooler.<region>.aws.neon.tech). Use it directly — appending
+  # "-pooler" again produced "-pooler-pooler", which misroutes Neon's SNI and
+  # surfaces as "password authentication failed".
+  database_url = "postgresql://${neon_role.app.name}:${urlencode(neon_role.app.password)}@${neon_endpoint.app.host}/${neon_database.app.name}?sslmode=require"
 }
