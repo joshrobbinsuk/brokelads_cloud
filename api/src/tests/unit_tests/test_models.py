@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.models import Bet, Fixture, JobControl, TransactionRecord, User
+from src.models import Bet, Fixture, JobControl, LedgerEntry, User
 
 
 class TestFixtureHasOdds:
@@ -75,6 +75,6 @@ class TestValidators:
         with pytest.raises(ValueError):
             Bet(outcome="PENDING")
 
-    def test_bad_transaction_type_rejected(self) -> None:
+    def test_bad_ledger_entry_type_rejected(self) -> None:
         with pytest.raises(ValueError):
-            TransactionRecord(type="REFUND")
+            LedgerEntry(type="REFUND")

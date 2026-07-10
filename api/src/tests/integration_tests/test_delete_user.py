@@ -13,9 +13,9 @@ from src import accounts
 from src.models import (
     Bet,
     CupEntry,
+    LedgerEntry,
+    LedgerEntryType,
     PunditUsage,
-    TransactionRecord,
-    TransactionType,
     User,
 )
 from src.tests.factories import (
@@ -51,11 +51,12 @@ def _user_with_history(db: Session) -> User:
     entry = make_cup_entry(db, cup=cup, user=user)
     bet = make_bet(db, user=user, fixture=fixture, cup_entry=entry)
     db.add(
-        TransactionRecord(
-            type=TransactionType.BET.value,
+        LedgerEntry(
+            cup_entry_id=entry.id,
             bet_id=bet.id,
-            user_balance_before=Decimal("1000.00"),
-            user_balance_after=Decimal("990.00"),
+            type=LedgerEntryType.BET_STAKE.value,
+            amount=Decimal("-10.00"),
+            balance_after=Decimal("990.00"),
         )
     )
     db.add(PunditUsage(user_id=user.id, day=date(2026, 1, 12), count=3))
@@ -69,7 +70,7 @@ def _counts(db: Session, user_id: str) -> tuple[int, int, int, int, int]:
         db.query(Bet).filter(Bet.user_id == user_id).count(),
         db.query(CupEntry).filter(CupEntry.user_id == user_id).count(),
         db.query(PunditUsage).filter(PunditUsage.user_id == user_id).count(),
-        db.query(TransactionRecord).count(),
+        db.query(LedgerEntry).count(),
     )
 
 

@@ -14,8 +14,8 @@ from ..models import (
     PunditUsage,
     User,
     FixtureResult,
-    TransactionRecord,
-    TransactionType,
+    LedgerEntry,
+    LedgerEntryType,
     UserStatus,
 )
 from ..utils.logging import logger
@@ -340,18 +340,18 @@ def create_bet(
             returns=returns,
         )
 
-        balance_before = entry.balance
         entry.debit(stake)
 
-        transaction = TransactionRecord(
+        ledger_entry = LedgerEntry(
+            cup_entry_id=entry.id,
             bet=bet,
-            type=TransactionType.BET.value,
-            user_balance_before=balance_before,
-            user_balance_after=entry.balance,
+            type=LedgerEntryType.BET_STAKE.value,
+            amount=-stake,
+            balance_after=entry.balance,
         )
 
         db.add(bet)
-        db.add(transaction)
+        db.add(ledger_entry)
         db.commit()
 
         return {"id": bet.id, "returns": bet.returns}

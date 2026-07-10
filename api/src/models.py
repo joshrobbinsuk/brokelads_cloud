@@ -39,10 +39,11 @@ class BetOutcome(str, Enum):
     VOIDED = "VOIDED"
 
 
-class TransactionType(str, Enum):
-    BET = "BET"
-    PAYOUT_BET_WON = "WON"
-    PAYOUT_BET_VOIDED = "VOID"
+class LedgerEntryType(str, Enum):
+    ENTRY_GRANT = "ENTRY_GRANT"
+    BET_STAKE = "BET_STAKE"
+    BET_PAYOUT = "BET_PAYOUT"
+    BET_VOID_REFUND = "BET_VOID_REFUND"
 
 
 class CupStatus(str, Enum):
@@ -162,8 +163,8 @@ class Bet(BaseModel):
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("user.id"), nullable=False
     )
-    cup_entry_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("cup_entry.id"), nullable=True
+    cup_entry_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("cup_entry.id"), nullable=False
     )
     choice: Mapped[str] = mapped_column(String(5), nullable=False)
     stake: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
@@ -174,11 +175,9 @@ class Bet(BaseModel):
 
     fixture: Mapped["Fixture"] = relationship("Fixture", back_populates="bets")
     user: Mapped["User"] = relationship("User", back_populates="bets")
-    cup_entry: Mapped["CupEntry | None"] = relationship(
-        "CupEntry", back_populates="bets"
-    )
-    transaction_records: Mapped[list["TransactionRecord"]] = relationship(
-        "TransactionRecord", back_populates="bet"
+    cup_entry: Mapped["CupEntry"] = relationship("CupEntry", back_populates="bets")
+    ledger_entries: Mapped[list["LedgerEntry"]] = relationship(
+        "LedgerEntry", back_populates="bet"
     )
 
     @validates("choice")
@@ -196,23 +195,29 @@ class Bet(BaseModel):
         return value
 
 
-class TransactionRecord(BaseModel):
-    __tablename__ = "transaction_record"
+class LedgerEntry(BaseModel):
+    __tablename__ = "ledger_entry"
 
-    type: Mapped[str] = mapped_column(String(6), nullable=False)
-    bet_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("bet.id"), nullable=False
+    cup_entry_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("cup_entry.id"), nullable=False
     )
-    user_balance_before: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
-    user_balance_after: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    bet_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("bet.id"), nullable=True
+    )
 
-    bet: Mapped["Bet"] = relationship("Bet", back_populates="transaction_records")
+    cup_entry: Mapped["CupEntry"] = relationship(
+        "CupEntry", back_populates="ledger_entries"
+    )
+    bet: Mapped["Bet | None"] = relationship("Bet", back_populates="ledger_entries")
 
     @validates("type")
     def validate_type(self, key: str, value: str) -> str:
-        allowed = {e.value for e in TransactionType}
+        allowed = {e.value for e in LedgerEntryType}
         if value not in allowed:
-            raise ValueError(f"Invalid transaction type: {value}")
+            raise ValueError(f"Invalid ledger entry type: {value}")
         return value
 
 
@@ -226,6 +231,7 @@ class Cup(BaseModel):
     status: Mapped[str] = mapped_column(
         String(16), default=CupStatus.OPEN.value, nullable=False
     )
+    final_entry_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     entries: Mapped[list["CupEntry"]] = relationship("CupEntry", back_populates="cup")
 
@@ -251,11 +257,14 @@ class CupEntry(BaseModel):
         String(36), ForeignKey("user.id"), nullable=False
     )
     balance: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
-    is_winner: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    final_rank: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     cup: Mapped["Cup"] = relationship("Cup", back_populates="entries")
     user: Mapped["User"] = relationship("User")
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="cup_entry")
+    ledger_entries: Mapped[list["LedgerEntry"]] = relationship(
+        "LedgerEntry", back_populates="cup_entry"
+    )
 
     def debit(self, amount: Decimal) -> None:
         if amount > self.balance:

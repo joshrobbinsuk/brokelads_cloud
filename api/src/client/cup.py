@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import Cup, CupEntry, CupStatus, User
+from ..models import Cup, CupEntry, CupStatus, LedgerEntry, LedgerEntryType, User
 from ..settings import CUP_STARTING_STAKE
 from ..utils.logging import logger
 from ..utils.weeks import current_week_window
@@ -64,6 +64,16 @@ def get_or_create_entry(db: Session, cup: Cup, user: User) -> CupEntry:
                 balance=CUP_STARTING_STAKE,
             )
             db.add(entry)
+            db.flush()
+            db.add(
+                LedgerEntry(
+                    cup_entry_id=entry.id,
+                    type=LedgerEntryType.ENTRY_GRANT.value,
+                    amount=CUP_STARTING_STAKE,
+                    balance_after=CUP_STARTING_STAKE,
+                    bet_id=None,
+                )
+            )
             db.commit()
             db.refresh(entry)
         return entry
@@ -92,15 +102,18 @@ def current_balance(db: Session, user: User, now: datetime) -> Decimal:
 
 
 def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
-    """Entries ordered by balance desc, with username, winner flag, and each
-    user's lifetime cup wins (aggregated in-query to avoid an N+1)."""
+    """Leaderboard rows for a cup. A settled cup serves its frozen `final_rank`
+    (deleted entries leave honest gaps); an open/closing cup ranks live by
+    balance. Each row carries the user's lifetime cup wins (aggregated in-query
+    to avoid an N+1)."""
     try:
+        settled = cup.status == CupStatus.SETTLED.value
         wins = (
             select(
                 CupEntry.user_id.label("user_id"),
                 func.count(CupEntry.id).label("cups_won"),
             )
-            .where(CupEntry.is_winner.is_(True))
+            .where(CupEntry.final_rank == 1)
             .group_by(CupEntry.user_id)
             .subquery()
         )
@@ -110,29 +123,36 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 User.username.label("username"),
                 User.avatar.label("avatar"),
                 CupEntry.balance.label("balance"),
-                CupEntry.is_winner.label("is_winner"),
+                CupEntry.final_rank.label("final_rank"),
                 func.coalesce(wins.c.cups_won, 0).label("cups_won"),
             )
             .join(User, User.id == CupEntry.user_id)
             .outerjoin(wins, wins.c.user_id == CupEntry.user_id)
             .where(CupEntry.cup_id == cup.id)
+        )
+        if settled:
+            stmt = stmt.order_by(
+                CupEntry.final_rank.asc(),
+                User.username.asc(),
+                CupEntry.user_id.asc(),
+            )
+        else:
             # user_id is the final tiebreaker so ordering is deterministic even
             # when a username is null (a user who bet before onboarding).
-            .order_by(
+            stmt = stmt.order_by(
                 CupEntry.balance.desc(),
                 User.username.asc(),
                 CupEntry.user_id.asc(),
             )
-        )
         rows = db.execute(stmt).mappings().all()
         return [
             {
-                "rank": index + 1,
+                "rank": row["final_rank"] if settled else index + 1,
                 "user_id": row["user_id"],
                 "username": row["username"],
                 "avatar": row["avatar"],
                 "balance": str(row["balance"]),
-                "is_winner": row["is_winner"],
+                "is_winner": row["final_rank"] == 1,
                 "cups_won": row["cups_won"],
             }
             for index, row in enumerate(rows)
@@ -146,7 +166,7 @@ def cups_won(db: Session, user: User) -> int:
     try:
         return (
             db.query(func.count(CupEntry.id))
-            .filter(CupEntry.user_id == user.id, CupEntry.is_winner.is_(True))
+            .filter(CupEntry.user_id == user.id, CupEntry.final_rank == 1)
             .scalar()
             or 0
         )

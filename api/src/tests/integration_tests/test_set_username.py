@@ -129,7 +129,7 @@ class TestLeaderboardUsername:
             week_start=datetime(2026, 1, 5, 0, 0, tzinfo=timezone.utc),
             status="SETTLED",
         )
-        make_cup_entry(db, cup=past, user=winner, is_winner=True)
+        make_cup_entry(db, cup=past, user=winner, final_rank=1)
         make_cup_entry(db, cup=cup, user=winner)
 
         rows = leaderboard(db, cup)

@@ -47,7 +47,7 @@ def test_backstop_force_voids_stuck_bet_and_settles(db: Session) -> None:
     assert bet.outcome == BetOutcome.VOIDED.value
     assert entry.balance == Decimal("1000.00")  # stake refunded
     assert cup.status == CupStatus.SETTLED.value
-    assert entry.is_winner is True
+    assert entry.final_rank == 1
 
 
 def test_cup_not_settled_while_undecided_bet_remains(db: Session) -> None:
@@ -110,9 +110,10 @@ def test_ties_produce_co_winners_and_cups_won_counts_them(db: Session) -> None:
     db.refresh(c_entry)
     db.refresh(cup)
     assert cup.status == CupStatus.SETTLED.value
-    assert a_entry.is_winner is True
-    assert b_entry.is_winner is True  # co-winner on the tie
-    assert c_entry.is_winner is False
+    assert a_entry.final_rank == 1
+    assert b_entry.final_rank == 1  # co-winner on the tie
+    assert c_entry.final_rank == 3  # two entries strictly ahead
+    assert cup.final_entry_count == 3
     assert cups_won(db, alice) == 1
     assert cups_won(db, bob) == 1
     assert cups_won(db, carol) == 0
@@ -123,7 +124,7 @@ def test_settled_cup_is_not_reprocessed(db: Session) -> None:
     cup = make_cup(db, week_start=start, week_end=end, status=CupStatus.SETTLED.value)
     user = make_user(db)
     entry = make_cup_entry(
-        db, cup=cup, user=user, balance=Decimal("1000.00"), is_winner=True
+        db, cup=cup, user=user, balance=Decimal("1000.00"), final_rank=1
     )
 
     run_close_cups(db)  # SETTLED cups are skipped
@@ -163,4 +164,4 @@ def test_won_bet_settles_cup_by_fixture_outcome(db: Session) -> None:
     assert bet.outcome == BetOutcome.WON.value
     assert entry.balance == Decimal("1025.00")  # 990 + 35
     assert cup.status == CupStatus.SETTLED.value
-    assert entry.is_winner is True
+    assert entry.final_rank == 1

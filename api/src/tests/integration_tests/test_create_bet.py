@@ -18,8 +18,8 @@ from src.models import (
     BetOutcome,
     CupEntry,
     FixtureResult,
-    TransactionRecord,
-    TransactionType,
+    LedgerEntry,
+    LedgerEntryType,
 )
 from src.settings import CUP_STARTING_STAKE
 from src.tests.factories import make_fixture, make_user
@@ -68,10 +68,22 @@ def test_first_bet_creates_cup_and_entry_at_1000_and_debits(db: Session) -> None
     assert bet.cup_entry_id == entry.id
     assert bet.outcome == BetOutcome.UNDECIDED.value
 
-    txn = db.query(TransactionRecord).filter(TransactionRecord.bet_id == bet.id).one()
-    assert txn.type == TransactionType.BET.value
-    assert txn.user_balance_before == CUP_STARTING_STAKE
-    assert txn.user_balance_after == CUP_STARTING_STAKE - Decimal("10.00")
+    grant = (
+        db.query(LedgerEntry)
+        .filter(
+            LedgerEntry.cup_entry_id == entry.id,
+            LedgerEntry.type == LedgerEntryType.ENTRY_GRANT.value,
+        )
+        .one()
+    )
+    assert grant.amount == CUP_STARTING_STAKE
+    assert grant.balance_after == CUP_STARTING_STAKE
+    assert grant.bet_id is None
+
+    stake_entry = db.query(LedgerEntry).filter(LedgerEntry.bet_id == bet.id).one()
+    assert stake_entry.type == LedgerEntryType.BET_STAKE.value
+    assert stake_entry.amount == Decimal("-10.00")
+    assert stake_entry.balance_after == CUP_STARTING_STAKE - Decimal("10.00")
 
 
 def test_balance_read_falls_back_to_1000_with_no_entry(db: Session) -> None:

@@ -20,7 +20,7 @@ from typing import Any
 import boto3
 from sqlalchemy.orm import Session
 
-from .models import Bet, CupEntry, PunditUsage, TransactionRecord, User
+from .models import Bet, CupEntry, LedgerEntry, PunditUsage, User
 from .settings import REGION, USER_POOL_ID
 from .utils.logging import logger
 
@@ -50,8 +50,10 @@ def _delete_cognito_user(cognito_uuid: str) -> bool:
 
 
 def _cascade_delete(db: Session, user: User) -> None:
-    bet_ids = [b.id for b in db.query(Bet.id).filter(Bet.user_id == user.id)]
-    db.query(TransactionRecord).filter(TransactionRecord.bet_id.in_(bet_ids)).delete(
+    entry_ids = [
+        e.id for e in db.query(CupEntry.id).filter(CupEntry.user_id == user.id)
+    ]
+    db.query(LedgerEntry).filter(LedgerEntry.cup_entry_id.in_(entry_ids)).delete(
         synchronize_session=False
     )
     db.query(Bet).filter(Bet.user_id == user.id).delete(synchronize_session=False)
