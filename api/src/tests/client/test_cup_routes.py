@@ -87,7 +87,7 @@ def test_cup_current_when_no_cup_yet(client: TestClient) -> None:
 
 def test_cup_by_id_and_404(client: TestClient, db: Session, user: User) -> None:
     cup = make_cup(db, status=CupStatus.SETTLED.value)
-    make_cup_entry(db, cup=cup, user=user, balance=Decimal("1500.00"), is_winner=True)
+    make_cup_entry(db, cup=cup, user=user, balance=Decimal("1500.00"), final_rank=1)
 
     body = client.get(f"/client/cup/{cup.id}").json()
     assert body["cup"]["status"] == CupStatus.SETTLED.value

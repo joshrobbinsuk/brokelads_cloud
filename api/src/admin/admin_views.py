@@ -9,7 +9,7 @@ from ..models import (
     User,
     Fixture,
     Bet,
-    TransactionRecord,
+    LedgerEntry,
     JobControl,
     Cup,
     CupEntry,
@@ -64,8 +64,8 @@ class BetAdmin(ModelView, model=Bet):
     column_sortable_list = ["created_at"]
 
 
-class TransactionRecordAdmin(ModelView, model=TransactionRecord):
-    column_list = ["type", "user_balance_before", "user_balance_after", "created_at"]
+class LedgerEntryAdmin(ModelView, model=LedgerEntry):
+    column_list = ["cup_entry", "type", "amount", "balance_after", "bet", "created_at"]
     column_sortable_list = ["created_at"]
 
 
@@ -80,7 +80,7 @@ class CupAdmin(ModelView, model=Cup):
 
 
 class CupEntryAdmin(ModelView, model=CupEntry):
-    column_list = ["cup", "user", "balance", "is_winner"]
+    column_list = ["cup", "user", "balance", "final_rank"]
     column_sortable_list = ["balance"]
 
 
@@ -89,7 +89,7 @@ def register_admin_views(admin: Admin) -> None:
     admin.add_view(LeagueAdmin)
     admin.add_view(FixtureAdmin)
     admin.add_view(BetAdmin)
-    admin.add_view(TransactionRecordAdmin)
+    admin.add_view(LedgerEntryAdmin)
     admin.add_view(JobControlAdmin)
     admin.add_view(CupAdmin)
     admin.add_view(CupEntryAdmin)

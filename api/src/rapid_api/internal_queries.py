@@ -13,8 +13,8 @@ from ..models import (
     Cup,
     CupEntry,
     CupStatus,
-    TransactionRecord,
-    TransactionType,
+    LedgerEntry,
+    LedgerEntryType,
 )
 from ..utils.logging import logger
 from ..settings import (
@@ -224,13 +224,8 @@ def fetch_voided_bets_to_settle(db: Session, limit: int = 200) -> list[Bet]:
         raise
 
 
-def _entry_for_bet(db: Session, bet: Bet) -> CupEntry | None:
-    if bet.cup_entry_id is None:
-        return None
-    entry = db.query(CupEntry).filter(CupEntry.id == bet.cup_entry_id).first()
-    if entry is None:
-        raise Exception(f"Cup entry {bet.cup_entry_id} not found for bet {bet.id}.")
-    return entry
+def _entry_for_bet(db: Session, bet: Bet) -> CupEntry:
+    return db.query(CupEntry).filter(CupEntry.id == bet.cup_entry_id).one()
 
 
 def settle_bet(db: Session, bet: Bet, won: bool) -> None:
@@ -240,17 +235,16 @@ def settle_bet(db: Session, bet: Bet, won: bool) -> None:
         entry = _entry_for_bet(db, bet)
         if won:
             bet.outcome = BetOutcome.WON.value
-            if entry is not None:
-                balance_before = entry.balance
-                entry.credit(bet.returns)
-                db.add(
-                    TransactionRecord(
-                        bet_id=bet.id,
-                        type=TransactionType.PAYOUT_BET_WON.value,
-                        user_balance_before=balance_before,
-                        user_balance_after=entry.balance,
-                    )
+            entry.credit(bet.returns)
+            db.add(
+                LedgerEntry(
+                    cup_entry_id=entry.id,
+                    bet_id=bet.id,
+                    type=LedgerEntryType.BET_PAYOUT.value,
+                    amount=bet.returns,
+                    balance_after=entry.balance,
                 )
+            )
         else:
             bet.outcome = BetOutcome.LOST.value
 
@@ -269,17 +263,16 @@ def settle_voided_bet(db: Session, bet: Bet) -> None:
         entry = _entry_for_bet(db, bet)
         bet.outcome = BetOutcome.VOIDED.value
 
-        if entry is not None:
-            balance_before = entry.balance
-            entry.credit(bet.stake)
-            db.add(
-                TransactionRecord(
-                    bet_id=bet.id,
-                    type=TransactionType.PAYOUT_BET_VOIDED.value,
-                    user_balance_before=balance_before,
-                    user_balance_after=entry.balance,
-                )
+        entry.credit(bet.stake)
+        db.add(
+            LedgerEntry(
+                cup_entry_id=entry.id,
+                bet_id=bet.id,
+                type=LedgerEntryType.BET_VOID_REFUND.value,
+                amount=bet.stake,
+                balance_after=entry.balance,
             )
+        )
 
         db.commit()
 
@@ -345,8 +338,9 @@ def count_undecided_bets_in_cup(db: Session, cup: Cup) -> int:
 
 
 def settle_cup(db: Session, cup: Cup) -> None:
-    """Flag the top-balance entry/entries as winner(s) (co-winners on ties) and
-    mark the cup SETTLED. Caller guarantees no UNDECIDED bets remain."""
+    """Stamp each entry's frozen final_rank (competition ranking: ties share a
+    rank, co-winners are both rank 1) and the cup's final_entry_count, then mark
+    the cup SETTLED. Caller guarantees no UNDECIDED bets remain."""
     try:
         entries = (
             db.query(CupEntry)
@@ -354,11 +348,10 @@ def settle_cup(db: Session, cup: Cup) -> None:
             .order_by(CupEntry.balance.desc())
             .all()
         )
-        if entries:
-            top_balance = entries[0].balance
-            for entry in entries:
-                if entry.balance == top_balance:
-                    entry.is_winner = True
+        for entry in entries:
+            better = sum(1 for other in entries if other.balance > entry.balance)
+            entry.final_rank = better + 1
+        cup.final_entry_count = len(entries)
         cup.status = CupStatus.SETTLED.value
         db.commit()
         logger.info(f"Cup {cup.id} settled.")

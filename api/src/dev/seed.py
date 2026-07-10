@@ -232,7 +232,7 @@ def _get_or_create_seed_user(db: Session) -> User:
 
 def _place_bets(db: Session, user: User) -> list[Bet]:
     """Place the planned spread of bets via the REAL create_bet (real stake debit
-    + TransactionRecord). Skips fixtures the user has already bet on so re-runs
+    + LedgerEntry). Skips fixtures the user has already bet on so re-runs
     don't double-stake."""
     fixtures = _seeded_fixtures(db)
     by_rapid = {f.rapid_api_id: f for f in fixtures}

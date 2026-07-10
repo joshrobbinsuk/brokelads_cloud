@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 from src.models import (
     BetOutcome,
     FixtureResult,
-    TransactionRecord,
-    TransactionType,
+    LedgerEntry,
+    LedgerEntryType,
 )
 from src.rapid_api.internal_queries import settle_bet, settle_voided_bet
 from src.rapid_api.jobs import run_settle_bets
@@ -46,9 +46,10 @@ def test_won_bet_credits_cup_entry(db: Session) -> None:
     db.refresh(entry)
     assert bet.outcome == BetOutcome.WON.value
     assert entry.balance == Decimal("1025.00")  # 990 + 35
-    txn = db.query(TransactionRecord).filter(TransactionRecord.bet_id == bet.id).one()
-    assert txn.type == TransactionType.PAYOUT_BET_WON.value
-    assert txn.user_balance_after == Decimal("1025.00")
+    ledger = db.query(LedgerEntry).filter(LedgerEntry.bet_id == bet.id).one()
+    assert ledger.type == LedgerEntryType.BET_PAYOUT.value
+    assert ledger.amount == Decimal("35.00")
+    assert ledger.balance_after == Decimal("1025.00")
 
 
 def test_lost_bet_pays_nothing(db: Session) -> None:
@@ -66,7 +67,7 @@ def test_lost_bet_pays_nothing(db: Session) -> None:
     db.refresh(entry)
     assert bet.outcome == BetOutcome.LOST.value
     assert entry.balance == Decimal("990.00")
-    assert db.query(TransactionRecord).count() == 0
+    assert db.query(LedgerEntry).count() == 0
 
 
 def test_settling_twice_raises(db: Session) -> None:
@@ -107,8 +108,9 @@ def test_voided_bet_refunds_stake(db: Session) -> None:
     db.refresh(entry)
     assert bet.outcome == BetOutcome.VOIDED.value
     assert entry.balance == Decimal("1000.00")  # stake refunded
-    txn = db.query(TransactionRecord).filter(TransactionRecord.bet_id == bet.id).one()
-    assert txn.type == TransactionType.PAYOUT_BET_VOIDED.value
+    ledger = db.query(LedgerEntry).filter(LedgerEntry.bet_id == bet.id).one()
+    assert ledger.type == LedgerEntryType.BET_VOID_REFUND.value
+    assert ledger.amount == Decimal("10.00")
 
 
 def test_run_settle_bets_settles_by_fixture_outcome(db: Session) -> None:

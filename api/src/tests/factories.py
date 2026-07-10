@@ -102,6 +102,26 @@ def make_fixture(
     return fixture
 
 
+_DEFAULT_CUP_WEEK_START = datetime(2020, 1, 6, 0, 0, tzinfo=timezone.utc)
+
+
+def _default_cup_entry(db: Session, user: User) -> CupEntry:
+    """A cup entry for tests that need a bet but don't care about the cup — every
+    bet now carries a NOT NULL cup_entry_id. Shared across such bets via a fixed
+    week_start that won't collide with cups a test builds explicitly."""
+    cup = db.query(Cup).filter(Cup.week_start == _DEFAULT_CUP_WEEK_START).first()
+    if cup is None:
+        cup = make_cup(db, week_start=_DEFAULT_CUP_WEEK_START)
+    entry = (
+        db.query(CupEntry)
+        .filter(CupEntry.cup_id == cup.id, CupEntry.user_id == user.id)
+        .first()
+    )
+    if entry is None:
+        entry = make_cup_entry(db, cup=cup, user=user)
+    return entry
+
+
 def make_bet(
     db: Session,
     *,
@@ -113,10 +133,12 @@ def make_bet(
     outcome: str = BetOutcome.UNDECIDED.value,
     cup_entry: "CupEntry | None" = None,
 ) -> Bet:
+    if cup_entry is None:
+        cup_entry = _default_cup_entry(db, user)
     bet = Bet(
         user_id=user.id,
         fixture_id=fixture.id,
-        cup_entry_id=cup_entry.id if cup_entry is not None else None,
+        cup_entry_id=cup_entry.id,
         choice=choice.value,
         stake=stake,
         returns=returns,
@@ -153,13 +175,13 @@ def make_cup_entry(
     cup: Cup,
     user: User,
     balance: Decimal = Decimal("1000.00"),
-    is_winner: bool = False,
+    final_rank: int | None = None,
 ) -> CupEntry:
     entry = CupEntry(
         cup_id=cup.id,
         user_id=user.id,
         balance=balance,
-        is_winner=is_winner,
+        final_rank=final_rank,
     )
     db.add(entry)
     db.commit()
