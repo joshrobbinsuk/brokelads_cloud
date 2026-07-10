@@ -93,8 +93,7 @@ def test_frozen_ranks_survive_entry_deletion_with_a_gap(db: Session) -> None:
         Decimal("800.00"),
     ]
     entries = [
-        make_cup_entry(db, cup=cup, user=u, balance=b)
-        for u, b in zip(users, balances)
+        make_cup_entry(db, cup=cup, user=u, balance=b) for u, b in zip(users, balances)
     ]
 
     settle_cup(db, cup)
