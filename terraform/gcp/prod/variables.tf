@@ -34,6 +34,14 @@ variable "openai_model" {
   default = "gpt-5-mini"
 }
 
+variable "alert_email" {
+  description = "Email address for the uptime alert notification channel"
+  type        = string
+  # Same address already hardcoded as ADMIN_EMAIL in api/src/settings.py — no
+  # new secret, repo is public.
+  default = "joshrobbinsukdev@gmail.com"
+}
+
 # --- Secrets: fed by CI, never invented here ---
 
 variable "rapid_api_key" {

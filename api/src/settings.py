@@ -10,6 +10,9 @@ REGION = os.getenv("REGION", "eu-west-2")
 USER_POOL_ID = os.getenv("USER_POOL_ID", None)
 COGNITO_CLIENT_ID = os.getenv("COGNITO_CLIENT_ID", None)
 
+_cors_origins_raw = os.getenv("CORS_ORIGINS")
+CORS_ORIGINS = _cors_origins_raw.split(",") if _cors_origins_raw else None
+
 ADMIN_EMAIL = "joshrobbinsukdev@gmail.com"
 ADMIN_SESSION_SECRET = os.getenv("ADMIN_SESSION_SECRET")
 LOCAL_ADMIN_BYPASS = bool(os.getenv("LOCAL_ADMIN_BYPASS"))

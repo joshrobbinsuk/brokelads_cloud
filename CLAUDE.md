@@ -67,7 +67,7 @@ Full stack (DB + API + auto-migrate + hot reload) via Docker — see `LOCAL_DEV.
 docker-compose up        # API on :8000, Postgres on :5432 (bl_dev / postgres:postgres)
 ```
 
-Needs `RAPID_API_KEY`, `CRON_AUTH_KEY`, `ADMIN_SESSION_SECRET`, and the admin OIDC vars `ADMIN_COGNITO_CLIENT_ID`/`ADMIN_COGNITO_CLIENT_SECRET` in the environment (no `.env.example` committed). `DATABASE_URL` and `ADMIN_SESSION_SECRET` are hard-required (app raises on missing).
+Needs `RAPID_API_KEY`, `CRON_AUTH_KEY`, `ADMIN_SESSION_SECRET`, and the admin OIDC vars `ADMIN_COGNITO_CLIENT_ID`/`ADMIN_COGNITO_CLIENT_SECRET` in the environment (no `.env.example` committed). `DATABASE_URL`, `ADMIN_SESSION_SECRET`, and `CORS_ORIGINS` (comma-separated allowed origins) are hard-required (app raises on missing) — compose sets `CORS_ORIGINS` for localhost, Terraform sets it in the cloud.
 
 ## Migrations
 

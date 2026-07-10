@@ -59,6 +59,13 @@ module "app" {
   admin_cognito_client_secret = data.terraform_remote_state.cognito.outputs.admin_client_secret
   openai_model                = var.openai_model
 
+  cors_origins = [
+    "https://brokelads.co.uk",
+    "https://www.brokelads.co.uk",
+    "https://bl-fe.vercel.app",
+  ]
+  alert_email = var.alert_email
+
   rapid_api_key         = var.rapid_api_key
   openai_api_key        = var.openai_api_key
   admin_session_secret  = var.admin_session_secret

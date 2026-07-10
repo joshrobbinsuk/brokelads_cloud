@@ -3,6 +3,10 @@ import os
 # database.py raises at import time if DATABASE_URL is unset. Tests run against
 # their own in-memory SQLite engine (see the `db` fixture), so any value works.
 os.environ.setdefault("DATABASE_URL", "sqlite://")
+# main.py raises at import time if these are unset (the CORS tests import the
+# real app to exercise the actual CORSMiddleware wiring).
+os.environ.setdefault("ADMIN_SESSION_SECRET", "test-secret")
+os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
 
 from typing import Iterator
 
