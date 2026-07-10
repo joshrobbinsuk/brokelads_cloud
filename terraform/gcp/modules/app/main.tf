@@ -29,6 +29,7 @@ locals {
     COGNITO_CLIENT_ID       = var.cognito_client_id
     ADMIN_COGNITO_CLIENT_ID = var.admin_cognito_client_id
     OPENAI_MODEL            = var.openai_model
+    CORS_ORIGINS            = join(",", var.cors_origins)
   }
 
   # Secret config: each becomes a Secret Manager secret + version, and is
@@ -62,6 +63,7 @@ resource "google_project_service" "apis" {
     "artifactregistry.googleapis.com",
     "cloudscheduler.googleapis.com",
     "secretmanager.googleapis.com",
+    "monitoring.googleapis.com",
   ])
 
   project            = var.gcp_project_id
@@ -188,12 +190,15 @@ resource "google_cloud_scheduler_job" "run_jobs" {
   name    = "${local.name_prefix}-run-jobs"
   project = var.gcp_project_id
   region  = var.region
-  # Every minute: jobs self-gate on their own min_interval_seconds, and some are
-  # tuned to a 1-min cadence — the trigger is the floor, so it must match the
-  # tightest job. On Cloud Run (request-billed, free tier) this is ~free, unlike
-  # App Runner's per-minute vCPU billing which is why it was briefly relaxed to 5.
-  schedule  = "* * * * *"
-  time_zone = "Etc/UTC"
+  # Every minute, but only 12:00-22:59 Europe/London: jobs self-gate on their
+  # own min_interval_seconds, and some are tuned to a 1-min cadence — the
+  # trigger is the floor within the window, so it must match the tightest job.
+  # The window keeps Neon autosuspending overnight so free-tier CU-h aren't
+  # blown (24/7 would be ~182 CU-h/month > the 100 free; 12:00-22:59 is ~82).
+  # User requests still wake Neon on demand outside the window — only
+  # ingestion pauses overnight.
+  schedule  = "* 12-22 * * *"
+  time_zone = "Europe/London"
 
   http_target {
     http_method = "POST"

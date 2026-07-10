@@ -55,6 +55,16 @@ variable "openai_model" {
   default     = "gpt-5-mini"
 }
 
+variable "cors_origins" {
+  description = "Allowed CORS origins for the API, joined into the CORS_ORIGINS env var"
+  type        = list(string)
+}
+
+variable "alert_email" {
+  description = "Email address for the uptime alert notification channel"
+  type        = string
+}
+
 # --- Secrets: values fed by CI (GitHub secrets), never invented here ---
 
 variable "rapid_api_key" {

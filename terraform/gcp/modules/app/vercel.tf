@@ -37,3 +37,17 @@ resource "vercel_project_environment_variable" "region" {
   target    = ["production"]
   sensitive = false
 }
+
+# Real domain for the frontend. The API stays on its run.app URL — only the
+# Vercel-hosted frontend gets the custom domain.
+resource "vercel_project_domain" "apex" {
+  project_id = var.vercel_project_id
+  domain     = "brokelads.co.uk"
+}
+
+resource "vercel_project_domain" "www" {
+  project_id           = var.vercel_project_id
+  domain               = "www.brokelads.co.uk"
+  redirect             = vercel_project_domain.apex.domain
+  redirect_status_code = 308
+}

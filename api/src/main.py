@@ -10,12 +10,14 @@ from .admin.admin_views import register_admin_views
 from .rapid_api.routes import router as rapid_api_router
 from .client.routes import router as client_router
 from .database import engine
-from .settings import ADMIN_SESSION_SECRET, LOCAL_ADMIN_BYPASS
+from .settings import ADMIN_SESSION_SECRET, CORS_ORIGINS, LOCAL_ADMIN_BYPASS
 
 app = FastAPI(title="BL API", description="Backend API for BL project", version="0.0.1")
+if CORS_ORIGINS is None:
+    raise RuntimeError("CORS_ORIGINS must be set")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

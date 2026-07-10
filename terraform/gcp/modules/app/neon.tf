@@ -8,9 +8,9 @@ resource "neon_project" "this" {
   pg_version = 16
 
   # The provider defaults PITR retention to 86400s (1 day), which exceeds this
-  # Neon tier's 21600s (6h) cap and fails the apply. A fresh-start demo doesn't
-  # need much history — keep a small window, comfortably under the cap.
-  history_retention_seconds = 3600
+  # Neon tier's 21600s (6h) cap and fails the apply. Real alpha users now —
+  # max out the free window instead of the smaller demo-era value.
+  history_retention_seconds = 21600
 }
 
 resource "neon_branch" "this" {
