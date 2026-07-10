@@ -8,9 +8,12 @@ resource "neon_project" "this" {
   pg_version = 16
 
   # The provider defaults PITR retention to 86400s (1 day), which exceeds this
-  # Neon tier's 21600s (6h) cap and fails the apply. Real alpha users now —
-  # max out the free window instead of the smaller demo-era value.
-  history_retention_seconds = 21600
+  # Neon tier's 21600s (6h) cap and fails the apply. 21600 would be the right
+  # value, but this account can't UPDATE an existing neon_project at all: the
+  # provider sends the full settings object (incl. maintenance window prefs)
+  # and the free tier rejects it with a 400. Keep the create-time value; bump
+  # only alongside a project recreate or a provider fix.
+  history_retention_seconds = 3600
 }
 
 resource "neon_branch" "this" {

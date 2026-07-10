@@ -130,6 +130,11 @@ resource "google_cloud_run_v2_service" "api" {
 
     scaling {
       min_instance_count = 0
+      # Abuse/cost cap, not capacity: at ~6 alpha users one instance (80
+      # concurrent requests) is plenty; the second is headroom for revision
+      # rollover or a wedged instance. Without a cap, hammering the public
+      # URL can fan out to 100 instances of spend.
+      max_instance_count = 2
     }
 
     containers {
