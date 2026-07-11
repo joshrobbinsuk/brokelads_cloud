@@ -3,7 +3,10 @@ from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy import (
+    JSON,
+    BigInteger,
     Date,
+    Identity,
     Integer,
     String,
     DateTime,
@@ -14,7 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, validates
 
 from src.database import BaseModel
 from .settings import OUTCOME_STATUSES
@@ -107,6 +110,9 @@ class League(BaseModel):
 
 class Fixture(BaseModel):
     __tablename__ = "fixture"
+    # rapid_api_id is the match's natural key; app-level dedupe has always kept it
+    # unique, so make it a DB invariant (and an index for save_new_fixtures' lookups).
+    __table_args__ = (Index("uq_fixture_rapid_api_id", "rapid_api_id", unique=True),)
 
     status: Mapped[str] = mapped_column(String(5), nullable=False)
     rapid_api_id: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -169,6 +175,9 @@ class Bet(BaseModel):
     choice: Mapped[str] = mapped_column(String(5), nullable=False)
     stake: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
     returns: Mapped[Decimal] = mapped_column(Numeric(19, 2), nullable=False)
+    # The decimal odds this bet was struck at, stamped at placement. Internal fact
+    # (not on the wire); nullable because pre-existing rows are backfilled by migration.
+    odds_struck: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     outcome: Mapped[str] = mapped_column(
         String(10), default=BetOutcome.UNDECIDED.value, nullable=False
     )
@@ -316,3 +325,44 @@ class JobControl(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.job_name} (enabled={self.enabled}, interval={self.min_interval_seconds}s)"
+
+
+class EventType(str, Enum):
+    USER_CREATED = "USER_CREATED"
+    CUP_ENTRY_CREATED = "CUP_ENTRY_CREATED"
+    BET_PLACED = "BET_PLACED"
+    BET_SETTLED = "BET_SETTLED"
+    CUP_SETTLED = "CUP_SETTLED"
+
+
+class Event(BaseModel):
+    """Append-only domain event log. Observational only — nothing reads it yet.
+    Deliberately has NO foreign key on user_id: events outlive user hard-delete
+    (honest gaps), same as frozen cup ranks."""
+
+    __tablename__ = "event"
+
+    # Monotonic total-order key (created_at ties within a transaction). The
+    # Identity marker makes the ORM omit seq on insert so Postgres' identity
+    # sequence populates it. nullable only so the SQLite test engine — which
+    # can't generate a non-PK identity — accepts the omitted value as NULL.
+    seq: Mapped[int | None] = mapped_column(
+        BigInteger, Identity(always=False), unique=True, nullable=True
+    )
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+
+
+def record_event(
+    db: Session,
+    event_type: EventType,
+    user_id: str,
+    payload: dict[str, object],
+) -> None:
+    """Append a domain event in the caller's transaction (no commit of its own).
+    Callers emit inside the mutation they describe, so the event and the mutation
+    land or roll back together."""
+    db.add(Event(type=event_type.value, user_id=user_id, payload=payload))

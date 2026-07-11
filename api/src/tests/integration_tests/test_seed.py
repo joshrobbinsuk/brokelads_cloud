@@ -68,10 +68,11 @@ def test_resolve_settles_win_lose_void_to_expected_balance(db: Session) -> None:
 
     entry = seed._entry_for(db, user)
     assert entry is not None
+    # Decimal odds already include the stake, so returns = stake * odds.
     # Debits: 6 x 10 = 60 -> 940.
-    # Wins:  30 (home) + 30 (home) + 40 (draw) + 50 (away) = 150.
-    # Void refund: 10. Final = 940 + 160 = 1100.
-    assert entry.balance == CUP_STARTING_STAKE + Decimal("100.00")
+    # Wins:  20 (home@2) + 20 (home@2) + 30 (draw@3) + 40 (away@4) = 110.
+    # Void refund: 10. Final = 940 + 110 + 10 = 1060.
+    assert entry.balance == CUP_STARTING_STAKE + Decimal("60.00")
 
 
 def test_resolve_refunds_the_voided_stake(db: Session) -> None:
