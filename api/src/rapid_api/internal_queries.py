@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Sequence
 
 from sqlalchemy import insert, update
@@ -13,8 +14,10 @@ from ..models import (
     Cup,
     CupEntry,
     CupStatus,
+    EventType,
     LedgerEntry,
     LedgerEntryType,
+    record_event,
 )
 from ..utils.logging import logger
 from ..settings import (
@@ -245,9 +248,17 @@ def settle_bet(db: Session, bet: Bet, won: bool) -> None:
                     balance_after=entry.balance,
                 )
             )
+            payout = bet.returns
         else:
             bet.outcome = BetOutcome.LOST.value
+            payout = Decimal("0")
 
+        record_event(
+            db,
+            EventType.BET_SETTLED,
+            entry.user_id,
+            {"bet_id": bet.id, "outcome": bet.outcome, "returns": str(payout)},
+        )
         db.commit()
 
     except Exception:
@@ -273,7 +284,12 @@ def settle_voided_bet(db: Session, bet: Bet) -> None:
                 balance_after=entry.balance,
             )
         )
-
+        record_event(
+            db,
+            EventType.BET_SETTLED,
+            entry.user_id,
+            {"bet_id": bet.id, "outcome": bet.outcome, "returns": str(bet.stake)},
+        )
         db.commit()
 
     except Exception:
@@ -351,6 +367,17 @@ def settle_cup(db: Session, cup: Cup) -> None:
         for entry in entries:
             better = sum(1 for other in entries if other.balance > entry.balance)
             entry.final_rank = better + 1
+            record_event(
+                db,
+                EventType.CUP_SETTLED,
+                entry.user_id,
+                {
+                    "cup_id": cup.id,
+                    "entry_id": entry.id,
+                    "final_rank": entry.final_rank,
+                    "final_balance": str(entry.balance),
+                },
+            )
         cup.final_entry_count = len(entries)
         cup.status = CupStatus.SETTLED.value
         db.commit()

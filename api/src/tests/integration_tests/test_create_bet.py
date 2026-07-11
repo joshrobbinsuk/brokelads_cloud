@@ -51,8 +51,8 @@ def test_first_bet_creates_cup_and_entry_at_1000_and_debits(db: Session) -> None
         stake=Decimal("10.00"),
     )
 
-    # returns = stake * odds + stake = 10 * 2.5 + 10
-    assert result["returns"] == Decimal("35.00")
+    # Decimal odds already include the stake: returns = stake * odds = 10 * 2.5
+    assert result["returns"] == Decimal("25.00")
 
     now = datetime.now(timezone.utc)
     cup = get_current_cup(db, now)
@@ -67,6 +67,7 @@ def test_first_bet_creates_cup_and_entry_at_1000_and_debits(db: Session) -> None
     bet = db.query(Bet).filter(Bet.id == result["id"]).one()
     assert bet.cup_entry_id == entry.id
     assert bet.outcome == BetOutcome.UNDECIDED.value
+    assert bet.odds_struck == Decimal("2.50")
 
     grant = (
         db.query(LedgerEntry)

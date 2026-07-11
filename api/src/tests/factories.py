@@ -1,6 +1,7 @@
 """Helpers to persist test entities. Keep values to exact binary fractions
 (.00/.25/.50/whole) so SQLite's float-backed NUMERIC stays exact."""
 
+import itertools
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -18,6 +19,10 @@ from src.models import (
     User,
     UserStatus,
 )
+
+# fixture.rapid_api_id is now uniquely indexed, so each fixture needs a distinct
+# one; tests that care about the exact value pass it explicitly.
+_rapid_api_id_seq = itertools.count(1)
 
 
 def make_user(
@@ -79,10 +84,13 @@ def make_fixture(
     away_goals: int | None = None,
     kick_off: datetime | None = None,
     league_id: str | None = None,
+    rapid_api_id: int | None = None,
 ) -> Fixture:
     fixture = Fixture(
         status=status,
-        rapid_api_id=1,
+        rapid_api_id=(
+            rapid_api_id if rapid_api_id is not None else next(_rapid_api_id_seq)
+        ),
         kick_off=kick_off or datetime.now(timezone.utc) + timedelta(days=1),
         venue="Stadium",
         home_team="Home FC",

@@ -47,6 +47,9 @@ def test_me_falls_back_to_1000_and_zero_cups_won(client: TestClient) -> None:
     assert body["balance"] == "1000"
     assert body["cups_won"] == 0
     assert body["avatar"] is None
+    # Wire contract: streak fields are always present, ints, zero for a fresh user.
+    assert body["participation_streak"] == 0
+    assert body["profit_streak"] == 0
 
 
 def test_cup_current_shows_balance_rank_and_leaderboard(
@@ -75,6 +78,9 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
     assert body["leaderboard"][0]["balance"] == "1200.00"
     assert body["leaderboard"][0]["avatar"] == "goat-teal"
     assert body["leaderboard"][1]["avatar"] == "fox-red"
+    # Wire contract: every leaderboard row carries both streak fields as ints.
+    assert body["leaderboard"][0]["participation_streak"] == 0
+    assert body["leaderboard"][0]["profit_streak"] == 0
 
 
 def test_cup_current_when_no_cup_yet(client: TestClient) -> None:

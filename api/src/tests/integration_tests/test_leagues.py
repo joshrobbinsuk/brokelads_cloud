@@ -90,8 +90,8 @@ class TestSaveNewFixturesBackfill:
         self, db: Session
     ) -> None:
         league = make_league(db, rapid_api_id=39)
-        # Pre-existing row (rapid_api_id=1 per factory) with no league yet.
-        existing = make_fixture(db, status="NS", league_id=None)
+        # Pre-existing row with no league yet; id must match the ingested schema.
+        existing = make_fixture(db, status="NS", league_id=None, rapid_api_id=1)
         assert existing.rapid_api_id == 1
 
         save_new_fixtures(db, [_fixture_schema(1)], league_id=league.id)
@@ -104,7 +104,7 @@ class TestSaveNewFixturesBackfill:
     def test_does_not_overwrite_an_already_set_league_id(self, db: Session) -> None:
         original = make_league(db, rapid_api_id=39)
         other = make_league(db, rapid_api_id=140, name="La Liga")
-        existing = make_fixture(db, status="NS", league_id=original.id)
+        existing = make_fixture(db, status="NS", league_id=original.id, rapid_api_id=1)
 
         save_new_fixtures(db, [_fixture_schema(1)], league_id=other.id)
 
@@ -113,7 +113,7 @@ class TestSaveNewFixturesBackfill:
 
     def test_inserts_new_and_backfills_existing_in_one_call(self, db: Session) -> None:
         league = make_league(db, rapid_api_id=39)
-        existing = make_fixture(db, status="NS", league_id=None)  # rapid_api_id=1
+        existing = make_fixture(db, status="NS", league_id=None, rapid_api_id=1)
 
         save_new_fixtures(
             db, [_fixture_schema(1), _fixture_schema(2)], league_id=league.id

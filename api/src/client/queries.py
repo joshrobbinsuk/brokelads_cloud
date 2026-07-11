@@ -9,6 +9,7 @@ from sqlalchemy import func, select, or_
 from ..models import (
     Bet,
     CupEntry,
+    EventType,
     Fixture,
     League,
     PunditUsage,
@@ -17,6 +18,7 @@ from ..models import (
     LedgerEntry,
     LedgerEntryType,
     UserStatus,
+    record_event,
 )
 from ..utils.logging import logger
 from ..settings import (
@@ -62,6 +64,8 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
                 status=UserStatus.ACTIVE.value,
             )
             db.add(user)
+            db.flush()
+            record_event(db, EventType.USER_CREATED, user.id, {"email": email})
             db.commit()
             db.refresh(user)
             logger.info(f"Created new user: {email} ({cognito_uuid})")
@@ -329,7 +333,8 @@ def create_bet(
         odds = odds_map.get(choice)
         if odds is None:
             raise ClientSideError("Fixture odds are unavailable")
-        returns = (stake * odds) + stake
+        # Decimal odds already include the stake in the total return.
+        returns = stake * odds
 
         bet = Bet(
             user_id=user.id,
@@ -338,6 +343,7 @@ def create_bet(
             choice=choice.value,
             stake=stake,
             returns=returns,
+            odds_struck=odds,
         )
 
         entry.debit(stake)
@@ -352,6 +358,19 @@ def create_bet(
 
         db.add(bet)
         db.add(ledger_entry)
+        db.flush()
+        record_event(
+            db,
+            EventType.BET_PLACED,
+            user.id,
+            {
+                "bet_id": bet.id,
+                "fixture_id": fixture.id,
+                "choice": choice.value,
+                "stake": str(stake),
+                "odds_struck": str(odds),
+            },
+        )
         db.commit()
 
         return {"id": bet.id, "returns": bet.returns}

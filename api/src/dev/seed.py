@@ -21,7 +21,18 @@ from sqlalchemy.orm import Session
 
 from ..client.cup import get_or_create_current_cup, get_or_create_entry
 from ..client.queries import create_bet
-from ..models import Bet, BetOutcome, CupEntry, Fixture, FixtureResult, League, User
+from ..client.streaks import compute_streaks
+from ..models import (
+    Bet,
+    BetOutcome,
+    Cup,
+    CupEntry,
+    CupStatus,
+    Fixture,
+    FixtureResult,
+    League,
+    User,
+)
 from ..rapid_api.internal_queries import save_new_fixtures, update_fixtures
 from ..rapid_api.jobs import run_settle_bets, run_settle_voided_bets
 from ..rapid_api.schemas.fixture import Fixture as FixtureSchema, UpdateFixture
@@ -276,6 +287,56 @@ def _resolve(db: Session) -> None:
     run_settle_voided_bets(db)
 
 
+# Balances for the 2-3 past settled weeks, newest first. Shaped so the seed user
+# gets a participation streak of 3 and a shorter profit streak of 1 (grant is
+# CUP_STARTING_STAKE = 1000): only the most recent week is profitable.
+_STREAK_WEEK_BALANCES = [
+    Decimal("1200.00"),  # last week — profit
+    Decimal("950.00"),  # two weeks ago — loss (breaks profit)
+    Decimal("1000.00"),  # three weeks ago — break-even
+]
+
+
+def _past_week_windows(n: int) -> list[tuple[datetime, datetime]]:
+    """The n civil-week windows immediately before the current one, newest first."""
+    start, _ = current_week_window(datetime.now(timezone.utc))
+    windows: list[tuple[datetime, datetime]] = []
+    for _ in range(n):
+        prev = current_week_window(start - timedelta(days=1))
+        windows.append(prev)
+        start = prev[0]
+    return windows
+
+
+def _seed_streak_history(db: Session, user: User) -> None:
+    """Give the user a run of PAST settled cups so the streak UI is playable.
+    Idempotent per (cup, user): reuses an existing past cup (so several users can
+    share the same weeks) and skips a week the user already has an entry in."""
+    for (week_start, week_end), balance in zip(
+        _past_week_windows(len(_STREAK_WEEK_BALANCES)), _STREAK_WEEK_BALANCES
+    ):
+        cup = db.query(Cup).filter(Cup.week_start == week_start).first()
+        if cup is None:
+            cup = Cup(
+                week_start=week_start, week_end=week_end, status=CupStatus.OPEN.value
+            )
+            db.add(cup)
+            db.commit()
+            db.refresh(cup)
+        already = (
+            db.query(CupEntry)
+            .filter(CupEntry.cup_id == cup.id, CupEntry.user_id == user.id)
+            .first()
+        )
+        if already is not None:
+            continue
+        entry = get_or_create_entry(db, cup, user)  # writes the ENTRY_GRANT ledger
+        entry.balance = balance
+        entry.final_rank = 1
+        cup.status = CupStatus.SETTLED.value
+        db.commit()
+
+
 def _entry_for(db: Session, user: User) -> CupEntry | None:
     cup = get_or_create_current_cup(db, datetime.now(timezone.utc))
     return (
@@ -310,6 +371,22 @@ def cmd_resolve(db: Session) -> None:
     print("resolve: results written and settlement run.")
 
 
+def cmd_streaks(db: Session, email: str | None) -> None:
+    if email is not None:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            raise SystemExit(f"No user with email {email!r}.")
+    else:
+        user = _get_or_create_seed_user(db)
+
+    _seed_streak_history(db, user)
+    streaks = compute_streaks(db, user.id)
+    print(
+        f"streaks: {user.email} -> participation={streaks['participation_streak']} "
+        f"profit={streaks['profit_streak']}"
+    )
+
+
 def cmd_all(db: Session) -> None:
     _seed_fixtures(db)
 
@@ -320,6 +397,7 @@ def cmd_all(db: Session) -> None:
 
     _place_bets(db, user)
     _resolve(db)
+    _seed_streak_history(db, user)
 
     _print_summary(db, user, balance_before)
 
@@ -362,7 +440,15 @@ def main() -> None:
         "--email", default=None, help="Target an existing user by email."
     )
     sub.add_parser("resolve", help="Write results and run settlement.")
-    sub.add_parser("all", help="fixtures -> bets -> resolve, with a summary.")
+    streaks_parser = sub.add_parser(
+        "streaks", help="Seed past settled cups for a streak history."
+    )
+    streaks_parser.add_argument(
+        "--email", default=None, help="Target an existing user by email."
+    )
+    sub.add_parser(
+        "all", help="fixtures -> bets -> resolve -> streaks, with a summary."
+    )
 
     args = parser.parse_args()
 
@@ -378,6 +464,8 @@ def main() -> None:
             cmd_bets(db, args.email)
         elif args.command == "resolve":
             cmd_resolve(db)
+        elif args.command == "streaks":
+            cmd_streaks(db, args.email)
         elif args.command == "all":
             cmd_all(db)
     finally:

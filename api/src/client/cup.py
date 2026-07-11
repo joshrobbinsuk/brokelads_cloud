@@ -4,10 +4,20 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import Cup, CupEntry, CupStatus, LedgerEntry, LedgerEntryType, User
+from ..models import (
+    Cup,
+    CupEntry,
+    CupStatus,
+    EventType,
+    LedgerEntry,
+    LedgerEntryType,
+    User,
+    record_event,
+)
 from ..settings import CUP_STARTING_STAKE
 from ..utils.logging import logger
 from ..utils.weeks import current_week_window
+from .streaks import compute_streaks_bulk
 
 
 def get_or_create_current_cup(db: Session, now: datetime) -> Cup:
@@ -73,6 +83,12 @@ def get_or_create_entry(db: Session, cup: Cup, user: User) -> CupEntry:
                     balance_after=CUP_STARTING_STAKE,
                     bet_id=None,
                 )
+            )
+            record_event(
+                db,
+                EventType.CUP_ENTRY_CREATED,
+                user.id,
+                {"cup_id": cup.id, "entry_id": entry.id},
             )
             db.commit()
             db.refresh(entry)
@@ -145,6 +161,7 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 CupEntry.user_id.asc(),
             )
         rows = db.execute(stmt).mappings().all()
+        streaks = compute_streaks_bulk(db, [row["user_id"] for row in rows])
         return [
             {
                 "rank": row["final_rank"] if settled else index + 1,
@@ -154,6 +171,8 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 "balance": str(row["balance"]),
                 "is_winner": row["final_rank"] == 1,
                 "cups_won": row["cups_won"],
+                "participation_streak": streaks[row["user_id"]]["participation_streak"],
+                "profit_streak": streaks[row["user_id"]]["profit_streak"],
             }
             for index, row in enumerate(rows)
         ]

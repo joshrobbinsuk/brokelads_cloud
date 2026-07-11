@@ -31,6 +31,7 @@ from src.client.pundit import (
     stream_pundit_response,
 )
 from src.tests.factories import make_bet, make_fixture, make_league, make_user
+from src.utils.weeks import current_week_window
 
 
 def _parse_sse(body: str) -> list[tuple[str, str]]:
@@ -247,18 +248,21 @@ class TestPunditUsername:
 
 class TestFetchVisibleFixtureSlateByIds:
     def test_preserves_request_order_and_dedupes(self, db: Session) -> None:
+        # Anchor kick-offs to the current cup week so both stay inside the slate
+        # window regardless of which weekday the suite runs on.
+        week_start, _ = current_week_window(datetime.now(timezone.utc))
         league = make_league(db)
         first = make_fixture(
             db,
             status="NS",
             league_id=league.id,
-            kick_off=datetime.now(timezone.utc) + timedelta(days=2),
+            kick_off=week_start + timedelta(hours=2),
         )
         second = make_fixture(
             db,
             status="NS",
             league_id=league.id,
-            kick_off=datetime.now(timezone.utc) + timedelta(days=1),
+            kick_off=week_start + timedelta(hours=1),
         )
 
         result = fetch_visible_fixture_slate_by_ids(

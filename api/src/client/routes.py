@@ -36,6 +36,7 @@ from .queries import (
     UsernameTakenError,
 )
 from . import cup as cup_queries
+from .streaks import compute_streaks
 from .schemas import (
     CreateBetRequest,
     CupSummary,
@@ -282,6 +283,7 @@ async def get_me(
 ) -> dict[str, Any]:
     try:
         now = datetime.now(timezone.utc)
+        streaks = compute_streaks(db, user.id)
         return {
             "id": str(user.id),
             "status": user.status,
@@ -291,6 +293,8 @@ async def get_me(
             "avatar": user.avatar,
             "balance": str(cup_queries.current_balance(db, user, now)),
             "cups_won": cup_queries.cups_won(db, user),
+            "participation_streak": streaks["participation_streak"],
+            "profit_streak": streaks["profit_streak"],
             "created_at": user.created_at,
             "updated_at": user.updated_at,
         }
