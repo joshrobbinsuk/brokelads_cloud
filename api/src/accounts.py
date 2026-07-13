@@ -1,50 +1,37 @@
-"""Account deletion across the two systems a user lives in: the Cognito pool
-and our own database.
+"""Account deletion across the two systems a user lives in: the Identity
+Platform (Firebase Auth) account and our own database.
 
-Public surface: `delete_user(db, user)`. It removes the Cognito account first
+Public surface: `delete_user(db, user)`. It removes the auth account first
 (so the credential is dead before we touch the DB) then cascade-deletes the
 user's rows. There is no DB-level ``ON DELETE CASCADE`` — the cascade is spelled
 out here so it stays visible and testable, and off the migration.
 
-Cognito needs real AWS credentials (the standard boto3 chain: App Runner's
-instance role in the cloud, an access key in the local env). A missing/denied
-credential aborts before any DB row is touched. A Cognito account that is simply
-absent is not an error: we log a warning, still remove the DB rows, and report
-it back so the caller can surface it.
+Firebase Auth needs Identity Platform admin on the runtime identity (ADC on
+Cloud Run, the emulator locally). A missing/denied credential aborts before any
+DB row is touched. An auth account that is simply absent is not an error: we log
+a warning, still remove the DB rows, and report it back so the caller can
+surface it.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
-import boto3
+from firebase_admin import auth
 from sqlalchemy.orm import Session
 
 from .models import Bet, CupEntry, LedgerEntry, PunditUsage, User
-from .settings import REGION, USER_POOL_ID
 from .utils.logging import logger
 
-_idp_client: Any = None
 
-
-def _cognito() -> Any:
-    global _idp_client
-    if _idp_client is None:
-        _idp_client = boto3.client("cognito-idp", region_name=REGION)
-    return _idp_client
-
-
-def _delete_cognito_user(cognito_uuid: str) -> bool:
-    """Delete the pool account. Returns True if it was there, False if Cognito
-    reports no such user (already gone — includes the synthetic seed user, whose
-    cognito_uuid never existed in the pool). Any other error propagates."""
-    client = _cognito()
+def _delete_auth_user(auth_uid: str) -> bool:
+    """Delete the Firebase Auth account. Returns True if it was there, False if
+    Firebase reports no such user (already gone — includes the synthetic seed
+    user, whose auth_uid never existed in the pool). Any other error propagates."""
     try:
-        client.admin_delete_user(UserPoolId=USER_POOL_ID, Username=cognito_uuid)
+        auth.delete_user(auth_uid)
         return True
-    except client.exceptions.UserNotFoundException:
+    except auth.UserNotFoundError:
         logger.warning(
-            f"No Cognito account for {cognito_uuid} on delete; removing DB rows anyway."
+            f"No auth account for {auth_uid} on delete; removing DB rows anyway."
         )
         return False
 
@@ -68,12 +55,12 @@ def _cascade_delete(db: Session, user: User) -> None:
 
 
 def delete_user(db: Session, user: User) -> bool:
-    """Hard-delete a user from Cognito and the database. Returns whether a
-    Cognito account was actually removed (False = it was already absent)."""
+    """Hard-delete a user from Firebase Auth and the database. Returns whether an
+    auth account was actually removed (False = it was already absent)."""
     try:
-        cognito_deleted = _delete_cognito_user(user.cognito_uuid)
+        auth_deleted = _delete_auth_user(user.auth_uid)
         _cascade_delete(db, user)
-        return cognito_deleted
+        return auth_deleted
     except Exception:
         db.rollback()
         logger.exception(f"Error deleting user {user.email}")
