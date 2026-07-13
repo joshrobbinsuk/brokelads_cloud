@@ -8,7 +8,7 @@ resource "vercel_project_environment_variable" "api_url" {
   project_id = var.vercel_project_id
   key        = "NEXT_PUBLIC_API_URL"
   value      = google_cloud_run_v2_service.api.uri
-  target     = ["production"]
+  target     = ["production", "preview"]
   sensitive  = false
 }
 
@@ -16,7 +16,7 @@ resource "vercel_project_environment_variable" "firebase_api_key" {
   project_id = var.vercel_project_id
   key        = "NEXT_PUBLIC_FIREBASE_API_KEY"
   value      = var.firebase_api_key
-  target     = ["production"]
+  target     = ["production", "preview"]
   sensitive  = false
 }
 
@@ -24,7 +24,7 @@ resource "vercel_project_environment_variable" "firebase_auth_domain" {
   project_id = var.vercel_project_id
   key        = "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"
   value      = var.firebase_auth_domain
-  target     = ["production"]
+  target     = ["production", "preview"]
   sensitive  = false
 }
 
@@ -32,7 +32,7 @@ resource "vercel_project_environment_variable" "firebase_project_id" {
   project_id = var.vercel_project_id
   key        = "NEXT_PUBLIC_FIREBASE_PROJECT_ID"
   value      = var.gcp_project_id
-  target     = ["production"]
+  target     = ["production", "preview"]
   sensitive  = false
 }
 
