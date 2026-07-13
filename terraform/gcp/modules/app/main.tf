@@ -85,11 +85,11 @@ resource "google_service_account" "runtime" {
   display_name = "${local.name_prefix} Cloud Run runtime"
 }
 
-# The app verifies Firebase id tokens and hard-deletes auth accounts via
-# firebase-admin using this SA's ADC. Identity Platform admin covers both.
-resource "google_project_iam_member" "runtime_identityplatform_admin" {
+# The app hard-deletes auth accounts via firebase-admin using this SA's ADC
+# (token verification needs no IAM — it checks Google's public certs).
+resource "google_project_iam_member" "runtime_firebaseauth_admin" {
   project = var.gcp_project_id
-  role    = "roles/identityplatform.admin"
+  role    = "roles/firebaseauth.admin"
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 

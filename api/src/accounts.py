@@ -25,7 +25,7 @@ from .utils.logging import logger
 def _delete_auth_user(auth_uid: str) -> bool:
     """Delete the Firebase Auth account. Returns True if it was there, False if
     Firebase reports no such user (already gone — includes the synthetic seed
-    user, whose auth_uid never existed in the pool). Any other error propagates."""
+    user, whose auth_uid never existed in Firebase). Any other error propagates."""
     try:
         auth.delete_user(auth_uid)
         return True

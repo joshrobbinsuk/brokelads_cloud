@@ -33,6 +33,18 @@ def test_invalid_token_raises_401(monkeypatch: pytest.MonkeyPatch) -> None:
     assert exc.value.detail == "Invalid token"
 
 
+def test_transient_cert_fetch_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom(token: str) -> dict[str, object]:
+        raise auth.CertificateFetchError("cert fetch failed", cause=None)
+
+    monkeypatch.setattr(firebase.auth, "verify_id_token", _boom)
+
+    with pytest.raises(auth.CertificateFetchError):
+        firebase.verify_token(_creds())
+
+
 def test_malformed_token_value_error_raises_401(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

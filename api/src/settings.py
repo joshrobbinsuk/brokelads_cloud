@@ -6,10 +6,6 @@ DATABASE_URL = os.getenv("DATABASE_URL", None)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 RAPID_API_KEY = os.getenv("RAPID_API_KEY", None)
-# GCP project id for Identity Platform / firebase-admin. `demo-brokelads` locally
-# (the Auth emulator project); the real project id in the cloud.
-GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", None)
-
 _cors_origins_raw = os.getenv("CORS_ORIGINS")
 CORS_ORIGINS = _cors_origins_raw.split(",") if _cors_origins_raw else None
 

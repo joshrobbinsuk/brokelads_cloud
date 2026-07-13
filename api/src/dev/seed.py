@@ -18,6 +18,8 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from urllib.parse import urlparse
 
+import firebase_admin
+from firebase_admin import auth
 from sqlalchemy.orm import Session
 
 from ..client.cup import get_or_create_current_cup, get_or_create_entry
@@ -370,11 +372,7 @@ def _seed_emulator_user() -> None:
 
     email = os.getenv("E2E_TEST_EMAIL", E2E_USER_EMAIL_DEFAULT)
 
-    import firebase_admin
-    from firebase_admin import auth
-
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app()
+    firebase_admin.initialize_app()
 
     try:
         auth.create_user(email=email, password=password, email_verified=True)
