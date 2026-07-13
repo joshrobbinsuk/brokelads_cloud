@@ -1,13 +1,13 @@
 # brokelads_cloud — backend
 
-FastAPI + PostgreSQL backend for the BrokeLads sports-betting demo. Ingests football fixtures/odds from API-Football (RapidAPI), lets authenticated users place and settle bets, and deploys to **GCP** (Cloud Run + Neon Postgres) via Terraform; **AWS Cognito** stays for auth. Frontend lives in the sibling `bl-fe` repo — see `../CLAUDE.md` for how they run together.
+FastAPI + PostgreSQL backend for the BrokeLads sports-betting demo. Ingests football fixtures/odds from API-Football (RapidAPI), lets authenticated users place and settle bets, and deploys to **GCP** (Cloud Run + Neon Postgres) via Terraform; auth is **GCP Identity Platform (Firebase Auth)** — locally the **Firebase Auth emulator** (fake, seedable, no real emails). Frontend lives in the sibling `bl-fe` repo — see `../CLAUDE.md` for how they run together.
 
 ## Layout (`api/src/`)
 
 Three feature packages, each a deep module with a thin surface:
-- `client/` — public REST API (`/client/*`), Cognito-authed. `routes.py` is the surface; `queries.py` holds DB logic, `schemas.py` the Pydantic I/O, `utils/{cognito,user}.py` the auth dependencies.
+- `client/` — public REST API (`/client/*`), Firebase-authed. `routes.py` is the surface; `queries.py` holds DB logic, `schemas.py` the Pydantic I/O, `utils/{firebase,user}.py` the auth dependencies (`firebase.py` verifies the id token via `firebase_admin`).
 - `rapid_api/` — data ingestion + bet settlement jobs. `routes.py` exposes one cron-authed endpoint; `runner.py` orchestrates, `jobs.py` holds the `JOB_REGISTRY`, `external_calls.py` hits API-Football, `schemas/` parses its responses.
-- `admin/` — SQLAdmin UI behind Cognito Hosted-UI OIDC (`auth.py`), model views (`admin_views.py`), manual job triggers (`rapid_api_admin.py`).
+- `admin/` — SQLAdmin UI behind Google OIDC (`auth.py`; admin gate = token email equals `ADMIN_EMAIL` AND `email_verified`), model views (`admin_views.py`), manual job triggers (`rapid_api_admin.py`).
 
 Shared: `main.py` (app + router wiring), `models.py` (all SQLAlchemy models), `database.py` (`BaseModel`, engine, `get_db`), `settings.py` (env + domain constants), `utils/logging.py` (loguru).
 
@@ -25,9 +25,9 @@ Football status codes drive settlement — see the `*_STATUSES` lists in `settin
 
 ## Endpoints
 
-- `GET /client/fixture` (optional `search`, `league_id`), `GET /client/league` (active leagues only), `POST /client/bet`, `GET /client/bet`, `GET /client/me` — all require a Cognito `idToken` Bearer (`verify_token` / `get_current_user`). `/client/fixture` returns a `FixtureResponse` schema nesting `league: {id, display_name, logo} | null`; money fields (odds) serialize as **strings**.
+- `GET /client/fixture` (optional `search`, `league_id`), `GET /client/league` (active leagues only), `POST /client/bet`, `GET /client/bet`, `GET /client/me` — all require a Firebase `idToken` Bearer (`verify_token` / `get_current_user`). `/client/me` exposes the Firebase uid as `auth_uid` (was `cognito_uuid`). `/client/fixture` returns a `FixtureResponse` schema nesting `league: {id, display_name, logo} | null`; money fields (odds) serialize as **strings**.
 - `POST /rapid-api/run-jobs` — requires header `X-Cron-Auth-Key: $CRON_AUTH_KEY`; runs due jobs from `JOB_REGISTRY`.
-- `GET /health`, `/admin` (Cognito Hosted-UI OIDC), `GET /auth/callback` (OIDC callback). Admin access requires the token's email to match `ADMIN_EMAIL` **and** membership in the Cognito `admins` group.
+- `GET /health`, `/admin` (Google OIDC), `GET /auth/callback` (OIDC callback). Admin access requires the token's email to match `ADMIN_EMAIL` **and** the `email_verified` claim to be true.
 
 ## Conventions
 
@@ -67,7 +67,9 @@ Full stack (DB + API + auto-migrate + hot reload) via Docker — see `LOCAL_DEV.
 docker-compose up        # API on :8000, Postgres on :5432 (bl_dev / postgres:postgres)
 ```
 
-Needs `RAPID_API_KEY`, `CRON_AUTH_KEY`, `ADMIN_SESSION_SECRET`, and the admin OIDC vars `ADMIN_COGNITO_CLIENT_ID`/`ADMIN_COGNITO_CLIENT_SECRET` in the environment (no `.env.example` committed). `DATABASE_URL`, `ADMIN_SESSION_SECRET`, and `CORS_ORIGINS` (comma-separated allowed origins) are hard-required (app raises on missing) — compose sets `CORS_ORIGINS` for localhost, Terraform sets it in the cloud.
+Needs `RAPID_API_KEY`, `CRON_AUTH_KEY`, `ADMIN_SESSION_SECRET` in the environment (no `.env.example` committed). Auth runs against the **Firebase Auth emulator** (compose service `firebase-auth`, project `demo-brokelads`, port `9099`); compose sets `GOOGLE_CLOUD_PROJECT=demo-brokelads` + `FIREBASE_AUTH_EMULATOR_HOST=firebase-auth:9099` so `firebase_admin` accepts the emulator's unsigned tokens — **never set the emulator host in the cloud**. `LOCAL_ADMIN_BYPASS` waves you into `/admin` locally; to exercise the real Google OIDC login supply `ADMIN_GOOGLE_CLIENT_ID`/`ADMIN_GOOGLE_CLIENT_SECRET`. `DATABASE_URL`, `ADMIN_SESSION_SECRET`, and `CORS_ORIGINS` (comma-separated allowed origins) are hard-required (app raises on missing) — compose sets `CORS_ORIGINS` for localhost, Terraform sets it in the cloud.
+
+Seed the emulator's e2e test user with `python -m src.dev.seed emulator-user` (also folded into `seed all`): creates the user from `E2E_TEST_EMAIL` (default `joshrobbinsukdev+test@gmail.com`) + `E2E_TEST_PASSWORD` (from `bl-fe/.env.e2e`, never hardcoded), idempotently, and only when the emulator host is set.
 
 ## Migrations
 
@@ -78,16 +80,16 @@ docker-compose exec api alembic upgrade head    # also runs automatically on con
 
 ## Deploy & branches
 
-Default branch is `dev`. Runs on **GCP** — Cloud Run + Neon Postgres, provisioned by Terraform in `terraform/gcp/`; **AWS Cognito** stays for auth (its own stack, `terraform/cognito/`, plus `terraform/local/` for local dev). GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-checks.yml`); push→`dev` builds the image, pushes to Artifact Registry, and Terraform-applies the GCP dev stack (`gcp-deploy.yml`, **keyless via Workload Identity Federation** — WIF/state bucket live in the `tf_bootstrap` repo). That deploy also sets the FE's Vercel env vars (`vercel.tf`) + fires the rebuild hook, so a redeploy re-wires the frontend with no manual step. `prod` (`terraform/gcp/prod`) is scaffolded but not yet wired for deploy. Feature branches: `feature/<slug>`.
+Default branch is `dev`. Runs on **GCP** — Cloud Run + Neon Postgres, provisioned by Terraform in `terraform/gcp/`; auth is **GCP Identity Platform (Firebase Auth)**, provisioned by the `terraform/modules/identity-platform` module the GCP stack instantiates (Google IdP + email/password, one account per email). GitHub Actions: PR→`dev` runs mypy+pytest (`dev-pr-checks.yml`); push→`dev` builds the image, pushes to Artifact Registry, and Terraform-applies the GCP dev stack (`gcp-deploy.yml`, **keyless via Workload Identity Federation** — WIF/state bucket live in the `tf_bootstrap` repo). That deploy also sets the FE's Vercel env vars (`vercel.tf`, the three `NEXT_PUBLIC_FIREBASE_*`) + fires the rebuild hook, so a redeploy re-wires the frontend with no manual step. `prod` (`terraform/gcp/prod`) is scaffolded but not yet wired for deploy. Feature branches: `feature/<slug>`.
 
-The retired AWS App Runner + RDS stack is archived under `terraform/aws/` (reference only; tag `aws-baseline`). Full migration record: `terraform/GCP_MIGRATION.md`.
+The retired AWS App Runner + RDS stack is archived under `terraform/aws/` (reference only; tag `aws-baseline`), alongside the retired Cognito stacks (`terraform/aws/cognito`, `terraform/aws/local`, `terraform/aws/modules/cognito`) — tear them down with the manual `cognito-teardown.yml` workflow after cloud verification. Full migration record: `terraform/GCP_MIGRATION.md`.
 
 ## Tests
 
 `src/tests/` runs against an in-memory SQLite engine (a fresh one per test, see `conftest.py`) — no Postgres needed. `factories.py` builds entities. `unit_tests/` covers model properties/validators; `integration_tests/` covers `create_bet` rules and settlement (`settle_bet`/`settle_voided_bet`/`run_settle_bets`). `test_seed.py` drives the dev seeder through the real fixture/odds/results **parse+write** path (schemas → `save_new_fixtures`/`update_fixtures`) plus the full bet→settlement loop, so the ingestion parse seam is now covered from `.model_validate` inward. Still uncovered: the FastAPI routes/auth dependencies, the admin UI, and the *live* RapidAPI HTTP layer (`external_calls.py` is unmocked — the seeder fakes the response, not the transport).
 
 ## Known gaps
-- `ADMIN_EMAIL` and the Cognito client/pool IDs are hardcoded (`settings.py`, `docker-compose.yml`) — fine for a demo, not for reuse.
+- `ADMIN_EMAIL` is hardcoded (`settings.py`) — fine for a demo, not for reuse.
 - `functions/agent/main.py` is a stub handler.
-- **Hard-delete user** (`accounts.delete_user`, wired to the SQLAdmin user list's delete button) removes the Cognito account (boto3 `AdminDeleteUser`) then cascade-deletes their DB rows (transactions → bets → cup entries → pundit usage → user) in one transaction. Needs `cognito-idp:AdminDeleteUser`; the app authenticates to AWS with `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — injected on Cloud Run from Secret Manager, and **locally via docker-compose** — or the delete errors before touching the DB. A Cognito account that is already absent isn't fatal — the DB rows still go and the admin gets a warning alert.
+- **Hard-delete user** (`accounts.delete_user`, wired to the SQLAdmin user list's delete button) removes the Firebase Auth account (`firebase_admin.auth.delete_user`) then cascade-deletes their DB rows (transactions → bets → cup entries → pundit usage → user) in one transaction. Needs Identity Platform admin on the Cloud Run runtime SA (`roles/identityplatform.admin`, granted in `terraform/gcp/modules/app`); locally it hits the Auth emulator. An auth account that is already absent isn't fatal — the DB rows still go and the admin gets a warning alert.
 - **Cup betting is not concurrency-hardened** (accepted for friends-scale v1): `create_bet`'s balance-check-then-`entry.debit` isn't row-locked, so two truly-simultaneous bets on the same `CupEntry` could overspend it; and the `get_or_create` of a cup/entry can lose a race on the unique constraint, surfacing a transient 500 (rolls back cleanly, self-heals on retry). Harden with `SELECT … FOR UPDATE` + an `IntegrityError` retry if real concurrent load appears.
