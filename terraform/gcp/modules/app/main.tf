@@ -24,25 +24,22 @@ locals {
 
   # Non-secret config, injected as plain Cloud Run env vars.
   plain_env = {
-    ENVIRONMENT             = var.env
-    USER_POOL_ID            = var.user_pool_id
-    COGNITO_CLIENT_ID       = var.cognito_client_id
-    ADMIN_COGNITO_CLIENT_ID = var.admin_cognito_client_id
-    OPENAI_MODEL            = var.openai_model
-    CORS_ORIGINS            = join(",", var.cors_origins)
+    ENVIRONMENT            = var.env
+    GOOGLE_CLOUD_PROJECT   = var.gcp_project_id
+    ADMIN_GOOGLE_CLIENT_ID = var.admin_google_client_id
+    OPENAI_MODEL           = var.openai_model
+    CORS_ORIGINS           = join(",", var.cors_origins)
   }
 
   # Secret config: each becomes a Secret Manager secret + version, and is
   # wired into Cloud Run via a secret env valueSource (never a plain value).
   secret_env = {
-    DATABASE_URL                = local.database_url
-    RAPID_API_KEY               = var.rapid_api_key
-    OPENAI_API_KEY              = var.openai_api_key
-    CRON_AUTH_KEY               = random_password.cron_auth_key.result
-    ADMIN_SESSION_SECRET        = var.admin_session_secret
-    ADMIN_COGNITO_CLIENT_SECRET = var.admin_cognito_client_secret
-    AWS_ACCESS_KEY_ID           = var.aws_access_key_id
-    AWS_SECRET_ACCESS_KEY       = var.aws_secret_access_key
+    DATABASE_URL               = local.database_url
+    RAPID_API_KEY              = var.rapid_api_key
+    OPENAI_API_KEY             = var.openai_api_key
+    CRON_AUTH_KEY              = random_password.cron_auth_key.result
+    ADMIN_SESSION_SECRET       = var.admin_session_secret
+    ADMIN_GOOGLE_CLIENT_SECRET = var.admin_google_client_secret
   }
 }
 
@@ -86,6 +83,14 @@ resource "google_service_account" "runtime" {
   project      = var.gcp_project_id
   account_id   = "${local.name_prefix}-run"
   display_name = "${local.name_prefix} Cloud Run runtime"
+}
+
+# The app verifies Firebase id tokens and hard-deletes auth accounts via
+# firebase-admin using this SA's ADC. Identity Platform admin covers both.
+resource "google_project_iam_member" "runtime_identityplatform_admin" {
+  project = var.gcp_project_id
+  role    = "roles/identityplatform.admin"
+  member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 resource "google_secret_manager_secret" "this" {

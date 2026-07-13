@@ -31,17 +31,20 @@ provider "vercel" {
   team      = var.vercel_team_id
 }
 
-# The standalone Cognito stack (terraform/cognito) is applied first in the
-# migration sequence; this stack composes off its outputs instead of taking
-# Cognito ids as CI-fed input vars.
-data "terraform_remote_state" "cognito" {
-  backend = "s3"
+module "identity_platform" {
+  source = "../../modules/identity-platform"
 
-  config = {
-    bucket = "initial-terraform-state-eu-west-2"
-    key    = "bl/cognito/terraform.tfstate"
-    region = "eu-west-2"
-  }
+  gcp_project_id             = var.gcp_project_id
+  google_oauth_client_id     = var.google_oauth_client_id
+  google_oauth_client_secret = var.google_oauth_client_secret
+
+  authorized_domains = [
+    "localhost",
+    "brokelads.co.uk",
+    "www.brokelads.co.uk",
+    "bl-fe.vercel.app",
+    "${var.gcp_project_id}.firebaseapp.com",
+  ]
 }
 
 module "app" {
@@ -53,11 +56,12 @@ module "app" {
   image          = var.image
   neon_region_id = var.neon_region_id
 
-  user_pool_id                = data.terraform_remote_state.cognito.outputs.user_pool_id
-  cognito_client_id           = data.terraform_remote_state.cognito.outputs.cognito_client_id
-  admin_cognito_client_id     = data.terraform_remote_state.cognito.outputs.admin_client_id
-  admin_cognito_client_secret = data.terraform_remote_state.cognito.outputs.admin_client_secret
-  openai_model                = var.openai_model
+  # One Google OAuth client (hand-off #1) backs both the end-user IdP and the
+  # admin panel OIDC login.
+  admin_google_client_id     = var.google_oauth_client_id
+  admin_google_client_secret = var.google_oauth_client_secret
+  firebase_api_key           = module.identity_platform.firebase_api_key
+  openai_model               = var.openai_model
 
   cors_origins = [
     "https://brokelads.co.uk",
@@ -66,11 +70,9 @@ module "app" {
   ]
   alert_email = var.alert_email
 
-  rapid_api_key         = var.rapid_api_key
-  openai_api_key        = var.openai_api_key
-  admin_session_secret  = var.admin_session_secret
-  aws_access_key_id     = var.aws_access_key_id
-  aws_secret_access_key = var.aws_secret_access_key
+  rapid_api_key        = var.rapid_api_key
+  openai_api_key       = var.openai_api_key
+  admin_session_secret = var.admin_session_secret
 
   vercel_api_token  = var.vercel_api_token
   vercel_project_id = var.vercel_project_id

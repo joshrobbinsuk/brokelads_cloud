@@ -1,15 +1,12 @@
 # Deploys the GCP app stack (terraform/gcp/dev) on push to `dev`.
 # GCP auth is keyless WIF (google-github-actions/auth), pinned to this repo +
 # branch by the tf_bootstrap gcp/ root — see terraform/GCP_MIGRATION.md.
-# AWS auth is a static key (existing AWS_ACCESS_KEY_ID/SECRET secrets) used
-# only to read the standalone Cognito stack's S3 remote state and to patch
-# its admin-client callback URL — the app itself never provisions AWS.
+# Auth is GCP Identity Platform (Firebase Auth) — no AWS dependency remains.
 #
 # Required GitHub secrets (repo settings > Secrets and variables > Actions),
-# all one-time — no per-deploy manual steps, and no Cognito-id secrets (those
-# are read from the Cognito stack's remote state at apply time):
+# all one-time — no per-deploy manual steps:
 #   RAPID_API_KEY, OPENAI_API_KEY, ADMIN_SESSION_SECRET,
-#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+#   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET,
 #   NEON_API_KEY,
 #   VERCEL_API_TOKEN, VERCEL_PROJECT_ID, VERCEL_DEPLOY_HOOK_URL
 
@@ -39,8 +36,8 @@ jobs:
       TF_VAR_rapid_api_key: ${{ secrets.RAPID_API_KEY }}
       TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
       TF_VAR_admin_session_secret: ${{ secrets.ADMIN_SESSION_SECRET }}
-      TF_VAR_aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      TF_VAR_aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      TF_VAR_google_oauth_client_id: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      TF_VAR_google_oauth_client_secret: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
       TF_VAR_vercel_api_token: ${{ secrets.VERCEL_API_TOKEN }}
       TF_VAR_vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID }}
 
@@ -64,15 +61,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.15.6"
-
-      # Needed by every terraform invocation below: the stack reads the
-      # standalone Cognito stack's state via an S3 remote-state data source.
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-2
 
       - name: Terraform Init
         working-directory: terraform/gcp/dev
@@ -105,27 +93,6 @@ jobs:
       - name: Terraform Apply (Full)
         working-directory: terraform/gcp/dev
         run: terraform apply -auto-approve
-
-      - name: Set Cognito admin callback URL
-        working-directory: terraform/gcp/dev
-        run: |
-          POOL=$(terraform output -raw admin_pool_id)
-          CLIENT=$(terraform output -raw admin_client_id)
-          CLOUD_RUN_URL=$(terraform output -raw cloud_run_url)
-          # update-user-pool-client does a FULL replace of the client config, so the OAuth flags
-          # must be re-passed or they reset. These flags MUST stay in sync with the oauth attributes
-          # on the standalone Cognito stack's admin app client (terraform/cognito).
-          aws cognito-idp update-user-pool-client \
-            --region eu-west-2 \
-            --user-pool-id "$POOL" \
-            --client-id "$CLIENT" \
-            --callback-urls "$CLOUD_RUN_URL/auth/callback" \
-            --logout-urls "$CLOUD_RUN_URL" \
-            --allowed-o-auth-flows code \
-            --allowed-o-auth-scopes openid email profile \
-            --allowed-o-auth-flows-user-pool-client \
-            --supported-identity-providers COGNITO \
-            > /dev/null
 
       - name: Output Service URL
         working-directory: terraform/gcp/dev

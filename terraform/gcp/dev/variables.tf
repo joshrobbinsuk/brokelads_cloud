@@ -26,9 +26,6 @@ variable "neon_region_id" {
   default     = "aws-eu-west-2"
 }
 
-# --- Cognito ids are NOT vars here: this stack reads them straight from the
-# standalone Cognito stack's remote state (see the data source in main.tf). ---
-
 variable "openai_model" {
   type    = string
   default = "gpt-5-mini"
@@ -59,12 +56,13 @@ variable "admin_session_secret" {
   sensitive = true
 }
 
-variable "aws_access_key_id" {
-  type      = string
-  sensitive = true
+# Google OAuth Web client (hand-off #1): backs the end-user google.com IdP AND
+# the admin panel OIDC login. GitHub secrets GOOGLE_OAUTH_CLIENT_ID/SECRET.
+variable "google_oauth_client_id" {
+  type = string
 }
 
-variable "aws_secret_access_key" {
+variable "google_oauth_client_secret" {
   type      = string
   sensitive = true
 }
