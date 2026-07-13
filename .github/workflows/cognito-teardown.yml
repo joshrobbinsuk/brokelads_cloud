@@ -1,0 +1,52 @@
+# One-off teardown of the retired Cognito stacks (the cloud pool
+# terraform/aws/cognito and the local-dev pool terraform/aws/local), after the
+# migration to GCP Identity Platform. IRREVERSIBLE. workflow_dispatch-only;
+# requires typing "destroy". Josh fires this manually AFTER cloud verification.
+name: Cognito Teardown (one-off)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to tear down the retired Cognito pools. IRREVERSIBLE.'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  teardown:
+    name: Destroy the retired Cognito stacks
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'destroy' }}
+
+    env:
+      TF_VAR_admin_password: ${{ secrets.ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.6"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Destroy the cloud Cognito pool (bl/cognito)
+        working-directory: terraform/aws/cognito
+        run: |
+          terraform init
+          terraform destroy -auto-approve
+
+      - name: Destroy the local-dev Cognito pool (bl/local)
+        working-directory: terraform/aws/local
+        run: |
+          terraform init
+          terraform destroy -auto-approve

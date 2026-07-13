@@ -1,3 +1,4 @@
+import firebase_admin
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -11,6 +12,10 @@ from .rapid_api.routes import router as rapid_api_router
 from .client.routes import router as client_router
 from .database import engine
 from .settings import ADMIN_SESSION_SECRET, CORS_ORIGINS, LOCAL_ADMIN_BYPASS
+
+# No explicit credentials: Application Default Credentials on Cloud Run, the
+# Auth emulator env locally; firebase-admin reads GOOGLE_CLOUD_PROJECT itself.
+firebase_admin.initialize_app()
 
 app = FastAPI(title="BL API", description="Backend API for BL project", version="0.0.1")
 if CORS_ORIGINS is None:

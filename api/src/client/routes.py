@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from ..utils.logging import logger
 from ..database import get_db
-from .utils.cognito import verify_token
+from .utils.firebase import verify_token
 from .utils.user import get_current_user
 from ..models import User, BetOutcome
 
@@ -287,7 +287,7 @@ async def get_me(
         return {
             "id": str(user.id),
             "status": user.status,
-            "cognito_uuid": user.cognito_uuid,
+            "auth_uid": user.auth_uid,
             "email": user.email,
             "username": user.username,
             "avatar": user.avatar,

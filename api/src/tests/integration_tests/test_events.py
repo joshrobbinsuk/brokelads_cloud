@@ -25,10 +25,10 @@ def _kick_off_this_week() -> datetime:
 
 
 def test_user_creation_emits_user_created(db: Session) -> None:
-    get_or_create_user(db, cognito_uuid="c1", email="a@test.com")
+    get_or_create_user(db, auth_uid="c1", email="a@test.com")
     assert EventType.USER_CREATED.value in _types(db)
     # Idempotent get on the second call emits nothing new.
-    get_or_create_user(db, cognito_uuid="c1", email="a@test.com")
+    get_or_create_user(db, auth_uid="c1", email="a@test.com")
     assert _types(db).count(EventType.USER_CREATED.value) == 1
 
 
@@ -85,8 +85,8 @@ def test_settlement_emits_bet_settled(db: Session) -> None:
 
 def test_settle_cup_emits_one_event_per_entry(db: Session) -> None:
     cup = make_cup(db)
-    alice = make_user(db, email="a@test.com", cognito_uuid="a")
-    bob = make_user(db, email="b@test.com", cognito_uuid="b")
+    alice = make_user(db, email="a@test.com", auth_uid="a")
+    bob = make_user(db, email="b@test.com", auth_uid="b")
     make_cup_entry(db, cup=cup, user=alice, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=bob, balance=Decimal("800.00"))
 

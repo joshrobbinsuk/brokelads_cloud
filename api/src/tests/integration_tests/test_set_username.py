@@ -47,16 +47,16 @@ class TestSetUsername:
     def test_rename_to_taken_rejects(self, db: Session) -> None:
         user = make_user(db)
         set_username(db, user, "josh_r")
-        other = make_user(db, email="other@test.com", cognito_uuid="c-other")
+        other = make_user(db, email="other@test.com", auth_uid="c-other")
         set_username(db, other, "taken")
 
         with pytest.raises(UsernameTakenError):
             set_username(db, user, "taken")
 
     def test_rejects_duplicate_case_insensitively(self, db: Session) -> None:
-        first = make_user(db, email="a@test.com", cognito_uuid="c-a")
+        first = make_user(db, email="a@test.com", auth_uid="c-a")
         set_username(db, first, "JoshR")
-        second = make_user(db, email="b@test.com", cognito_uuid="c-b")
+        second = make_user(db, email="b@test.com", auth_uid="c-b")
 
         with pytest.raises(UsernameTakenError):
             set_username(db, second, "joshr")
@@ -73,10 +73,10 @@ class TestSetUsername:
     ) -> None:
         # The functional unique index on lower(username) is the invariant, not
         # just the app-layer check in set_username.
-        make_user(db, email="a@test.com", cognito_uuid="c-a", username="JoshR")
+        make_user(db, email="a@test.com", auth_uid="c-a", username="JoshR")
 
         with pytest.raises(IntegrityError):
-            make_user(db, email="b@test.com", cognito_uuid="c-b", username="joshr")
+            make_user(db, email="b@test.com", auth_uid="c-b", username="joshr")
 
 
 class TestSetUsernameRequestValidation:
@@ -121,7 +121,7 @@ class TestSetAvatarRequestValidation:
 class TestLeaderboardUsername:
     def test_row_carries_username_and_lifetime_wins(self, db: Session) -> None:
         cup = make_cup(db)
-        winner = make_user(db, email="w@test.com", cognito_uuid="c-w")
+        winner = make_user(db, email="w@test.com", auth_uid="c-w")
         set_username(db, winner, "champ")
         # A prior settled cup this user won, plus their entry in the current cup.
         past = make_cup(

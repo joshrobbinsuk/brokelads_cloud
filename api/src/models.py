@@ -66,7 +66,9 @@ class User(BaseModel):
     status: Mapped[str] = mapped_column(
         String(16), default=UserStatus.ACTIVE.value, nullable=False
     )
-    cognito_uuid: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    auth_uid: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     # Freely changeable; case-insensitively unique (see the index above). Length
     # limit is enforced at the request boundary (SetUsernameRequest).

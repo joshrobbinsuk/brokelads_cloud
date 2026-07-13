@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ...database import get_db
-from .cognito import verify_token
+from .firebase import verify_token
 from ...models import User
 
 from ..queries import (
@@ -16,7 +16,7 @@ async def get_current_user(
     db: Session = Depends(get_db),
     token_user: dict[str, Any] = Depends(verify_token),
 ) -> User:
-    cognito_uuid = token_user["sub"]
+    auth_uid = token_user["sub"]
     email = token_user.get("email")
     if not isinstance(email, str):
         raise HTTPException(
@@ -24,4 +24,4 @@ async def get_current_user(
             detail="Token missing email claim",
         )
 
-    return get_or_create_user(db, cognito_uuid, email)
+    return get_or_create_user(db, auth_uid, email)

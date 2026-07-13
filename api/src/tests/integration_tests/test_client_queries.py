@@ -15,17 +15,17 @@ from src.tests.factories import make_bet, make_fixture, make_league, make_user
 
 class TestGetOrCreateUser:
     def test_creates_active_user_on_first_call(self, db: Session) -> None:
-        user = get_or_create_user(db, cognito_uuid="abc-123", email="new@test.com")
+        user = get_or_create_user(db, auth_uid="abc-123", email="new@test.com")
 
         assert user is not None
         assert user.email == "new@test.com"
-        assert user.cognito_uuid == "abc-123"
+        assert user.auth_uid == "abc-123"
         assert user.status == UserStatus.ACTIVE.value
         assert db.query(User).count() == 1
 
     def test_returns_existing_user_without_duplicating(self, db: Session) -> None:
-        first = get_or_create_user(db, cognito_uuid="abc-123", email="new@test.com")
-        second = get_or_create_user(db, cognito_uuid="abc-123", email="new@test.com")
+        first = get_or_create_user(db, auth_uid="abc-123", email="new@test.com")
+        second = get_or_create_user(db, auth_uid="abc-123", email="new@test.com")
 
         assert first is not None and second is not None
         assert first.id == second.id
@@ -35,7 +35,7 @@ class TestGetOrCreateUser:
         # A DB fault must propagate, not surface as a misleading "no user".
         BaseModel.metadata.drop_all(bind=db.get_bind())
         with pytest.raises(Exception):
-            get_or_create_user(db, cognito_uuid="abc-123", email="new@test.com")
+            get_or_create_user(db, auth_uid="abc-123", email="new@test.com")
 
 
 class TestFetchNonStartedFixturesWithOdds:
@@ -69,8 +69,8 @@ class TestFetchNonStartedFixturesWithOdds:
 
 class TestGetUserBets:
     def test_returns_only_the_users_own_bets(self, db: Session) -> None:
-        owner = make_user(db, email="owner@test.com", cognito_uuid="owner")
-        other = make_user(db, email="other@test.com", cognito_uuid="other")
+        owner = make_user(db, email="owner@test.com", auth_uid="owner")
+        other = make_user(db, email="other@test.com", auth_uid="other")
         fixture = make_fixture(db, status="FT", home_goals=1, away_goals=0)
         make_bet(db, user=owner, fixture=fixture)
         make_bet(db, user=other, fixture=fixture)

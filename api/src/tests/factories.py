@@ -29,14 +29,14 @@ def make_user(
     db: Session,
     *,
     email: str = "user@test.com",
-    cognito_uuid: str = "cognito-1",
+    auth_uid: str = "auth-1",
     status: str = UserStatus.ACTIVE.value,
     username: str | None = None,
     avatar: str | None = None,
 ) -> User:
     user = User(
         email=email,
-        cognito_uuid=cognito_uuid,
+        auth_uid=auth_uid,
         status=status,
         username=username,
         avatar=avatar,

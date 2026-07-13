@@ -103,7 +103,7 @@ def test_unlimited_email_bypasses_cap_without_writing_a_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "PUNDIT_UNLIMITED_EMAILS", "vip@test.com")
-    user = make_user(db, email="vip@test.com", cognito_uuid="vip")
+    user = make_user(db, email="vip@test.com", auth_uid="vip")
     _override_user(app, user)
     fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
     _inject_fake_stream(monkeypatch, ["Hi"])

@@ -6,11 +6,9 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response, PlainTextResponse
 
 from ..settings import (
-    ADMIN_COGNITO_CLIENT_ID,
-    ADMIN_COGNITO_CLIENT_SECRET,
     ADMIN_EMAIL,
-    REGION,
-    USER_POOL_ID,
+    ADMIN_GOOGLE_CLIENT_ID,
+    ADMIN_GOOGLE_CLIENT_SECRET,
 )
 from ..utils.logging import logger
 
@@ -26,17 +24,16 @@ def _is_allowed_email(v: str | None) -> bool:
 def _is_admin(claims: dict[str, Any]) -> bool:
     if not _is_allowed_email(claims.get("email")):
         return False
-    return "admins" in (claims.get("cognito:groups") or [])
+    return claims.get("email_verified") is True
 
 
 oauth = OAuth()
 oauth.register(
     name="oidc",
-    client_id=ADMIN_COGNITO_CLIENT_ID,
-    client_secret=ADMIN_COGNITO_CLIENT_SECRET,
+    client_id=ADMIN_GOOGLE_CLIENT_ID,
+    client_secret=ADMIN_GOOGLE_CLIENT_SECRET,
     server_metadata_url=(
-        f"https://cognito-idp.{REGION}.amazonaws.com/"
-        f"{USER_POOL_ID}/.well-known/openid-configuration"
+        "https://accounts.google.com/.well-known/openid-configuration"
     ),
     client_kwargs={"scope": "openid email profile"},
 )
@@ -69,9 +66,9 @@ async def oidc_callback(request: Request) -> Response:
     try:
         token = await oidc.authorize_access_token(request)
         # Authlib validates the id_token and populates `userinfo` from its claims on the OIDC
-        # code flow. Cognito puts `cognito:groups` in the id_token for group members, so this is
-        # the only claim source we trust for the admin gate. No fallback: a missing userinfo is an
-        # error, not a reason to source claims from somewhere lacking the groups claim.
+        # code flow. Google's id_token carries the `email` + `email_verified` claims the admin
+        # gate checks. No fallback: a missing userinfo is an error, not a reason to source claims
+        # from somewhere lacking those claims.
         claims = token.get("userinfo")
         if not claims:
             raise RuntimeError("OIDC token did not include id_token claims (userinfo)")

@@ -30,22 +30,10 @@ variable "image" {
   type        = string
 }
 
-# --- Cognito (stays on AWS, in its own standalone stack; the caller reads
-# these from that stack's remote state — never fed in directly by CI). Ids
-# are not secret, the admin client secret is. ---
+# --- Admin panel Google OIDC. The client id is not secret; the secret is. ---
 
-variable "user_pool_id" {
-  description = "AWS Cognito user pool ID (frontend/client pool)"
-  type        = string
-}
-
-variable "cognito_client_id" {
-  description = "AWS Cognito app client ID (frontend/client pool)"
-  type        = string
-}
-
-variable "admin_cognito_client_id" {
-  description = "AWS Cognito app client ID for the admin OIDC client"
+variable "admin_google_client_id" {
+  description = "Google OAuth Web client id for the admin panel OIDC login"
   type        = string
 }
 
@@ -85,22 +73,23 @@ variable "admin_session_secret" {
   sensitive   = true
 }
 
-variable "admin_cognito_client_secret" {
-  description = "Client secret for the Cognito admin OIDC app client"
+variable "admin_google_client_secret" {
+  description = "Client secret for the admin panel Google OIDC login"
   type        = string
   sensitive   = true
 }
 
-variable "aws_access_key_id" {
-  description = "AWS access key so the app can make Cognito admin calls (AdminDeleteUser etc) via boto3 from GCP"
+# --- Firebase / Identity Platform (FE env vars; api_key is public-by-design) ---
+
+variable "firebase_api_key" {
+  description = "Identity Platform web API key (from the identity-platform module), shipped to the FE as NEXT_PUBLIC_FIREBASE_API_KEY"
   type        = string
-  sensitive   = true
 }
 
-variable "aws_secret_access_key" {
-  description = "AWS secret key paired with aws_access_key_id"
+variable "firebase_auth_domain" {
+  description = "authDomain the FE initialises Firebase with (the branded custom domain)"
   type        = string
-  sensitive   = true
+  default     = "brokelads.co.uk"
 }
 
 # --- Neon ---

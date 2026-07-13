@@ -82,7 +82,7 @@ def test_frozen_ranks_survive_entry_deletion_with_a_gap(db: Session) -> None:
     start, end = _past_week()
     cup = make_cup(db, week_start=start, week_end=end, status=CupStatus.OPEN.value)
     users = [
-        make_user(db, email=f"u{i}@test.com", cognito_uuid=f"c{i}", username=f"u{i}")
+        make_user(db, email=f"u{i}@test.com", auth_uid=f"c{i}", username=f"u{i}")
         for i in range(4)
     ]
     # Two tied at the top, then a clear third and fourth: ranks 1, 1, 3, 4.
@@ -115,8 +115,8 @@ def test_frozen_ranks_survive_entry_deletion_with_a_gap(db: Session) -> None:
 
 def test_open_cup_leaderboard_ranks_live_by_balance(db: Session) -> None:
     cup = make_cup(db, status=CupStatus.OPEN.value)
-    high = make_user(db, email="hi@test.com", cognito_uuid="hi", username="hi")
-    low = make_user(db, email="lo@test.com", cognito_uuid="lo", username="lo")
+    high = make_user(db, email="hi@test.com", auth_uid="hi", username="hi")
+    low = make_user(db, email="lo@test.com", auth_uid="lo", username="lo")
     make_cup_entry(db, cup=cup, user=high, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=low, balance=Decimal("900.00"))
 

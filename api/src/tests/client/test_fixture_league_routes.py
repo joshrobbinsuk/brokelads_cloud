@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from src.client.routes import router as client_router
-from src.client.utils.cognito import verify_token
+from src.client.utils.firebase import verify_token
 from src.database import get_db
 from src.tests.factories import make_fixture, make_league
 

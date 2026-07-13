@@ -23,8 +23,8 @@ class UserAdmin(ModelView, model=User):
 
     async def delete_model(self, request: Request, pk: str) -> None:
         """Route the standard delete button through the two-system hard delete
-        (Cognito + DB cascade) rather than SQLAdmin's bare ORM delete, which
-        would FK-violate on any user who has placed a bet. A Cognito account
+        (Firebase Auth + DB cascade) rather than SQLAdmin's bare ORM delete,
+        which would FK-violate on any user who has placed a bet. An auth account
         that was already absent isn't fatal — the DB rows still go, but we raise
         so the admin sees the warning (SQLAdmin alerts the raised detail)."""
         db = SessionLocal()
@@ -33,14 +33,14 @@ class UserAdmin(ModelView, model=User):
             if user is None:
                 raise HTTPException(status_code=404)
             email = user.email
-            cognito_deleted = accounts.delete_user(db, user)
+            auth_deleted = accounts.delete_user(db, user)
         finally:
             db.close()
-        if not cognito_deleted:
+        if not auth_deleted:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"Removed {email} from the database, but no matching Cognito "
+                    f"Removed {email} from the database, but no matching auth "
                     "account existed — it was already absent. Refresh to confirm."
                 ),
             )

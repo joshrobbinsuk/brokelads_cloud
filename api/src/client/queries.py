@@ -45,21 +45,21 @@ def get_user(db: Session, user_id: str) -> User | None:
         raise
 
 
-def get_user_by_cognito_id(db: Session, cognito_uuid: str) -> User | None:
+def get_user_by_auth_uid(db: Session, auth_uid: str) -> User | None:
     try:
-        return db.query(User).filter(User.cognito_uuid == cognito_uuid).first()
+        return db.query(User).filter(User.auth_uid == auth_uid).first()
     except Exception:
-        logger.exception(f"Error fetching user by cognito_uuid {cognito_uuid}")
+        logger.exception(f"Error fetching user by auth_uid {auth_uid}")
         raise
 
 
-def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
+def get_or_create_user(db: Session, auth_uid: str, email: str) -> User:
     try:
-        user = get_user_by_cognito_id(db, cognito_uuid)
+        user = get_user_by_auth_uid(db, auth_uid)
 
         if not user:
             user = User(
-                cognito_uuid=cognito_uuid,
+                auth_uid=auth_uid,
                 email=email,
                 status=UserStatus.ACTIVE.value,
             )
@@ -68,7 +68,7 @@ def get_or_create_user(db: Session, cognito_uuid: str, email: str) -> User:
             record_event(db, EventType.USER_CREATED, user.id, {"email": email})
             db.commit()
             db.refresh(user)
-            logger.info(f"Created new user: {email} ({cognito_uuid})")
+            logger.info(f"Created new user: {email} ({auth_uid})")
 
         return user
     except Exception:

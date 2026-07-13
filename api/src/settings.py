@@ -6,18 +6,14 @@ DATABASE_URL = os.getenv("DATABASE_URL", None)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 RAPID_API_KEY = os.getenv("RAPID_API_KEY", None)
-REGION = os.getenv("REGION", "eu-west-2")
-USER_POOL_ID = os.getenv("USER_POOL_ID", None)
-COGNITO_CLIENT_ID = os.getenv("COGNITO_CLIENT_ID", None)
-
 _cors_origins_raw = os.getenv("CORS_ORIGINS")
 CORS_ORIGINS = _cors_origins_raw.split(",") if _cors_origins_raw else None
 
 ADMIN_EMAIL = "joshrobbinsukdev@gmail.com"
 ADMIN_SESSION_SECRET = os.getenv("ADMIN_SESSION_SECRET")
 LOCAL_ADMIN_BYPASS = bool(os.getenv("LOCAL_ADMIN_BYPASS"))
-ADMIN_COGNITO_CLIENT_ID = os.getenv("ADMIN_COGNITO_CLIENT_ID")
-ADMIN_COGNITO_CLIENT_SECRET = os.getenv("ADMIN_COGNITO_CLIENT_SECRET")
+ADMIN_GOOGLE_CLIENT_ID = os.getenv("ADMIN_GOOGLE_CLIENT_ID")
+ADMIN_GOOGLE_CLIENT_SECRET = os.getenv("ADMIN_GOOGLE_CLIENT_SECRET")
 
 PUNDIT_RECENT_BET_LIMIT = int(os.getenv("PUNDIT_RECENT_BET_LIMIT", "5"))
 PUNDIT_SYSTEM_PROMPT = os.getenv(
