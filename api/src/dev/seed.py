@@ -12,6 +12,7 @@ is the prod seatbelt below.
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -44,9 +45,13 @@ SEED_LEAGUE_RAPID_ID = 999001
 SEED_FIXTURE_RAPID_ID_BASE = 900000  # fixtures are +1..+N
 
 # Synthetic user for the self-contained loop. Reserved namespace so it never
-# collides with a real Cognito account.
+# collides with a real auth account.
 SEED_USER_EMAIL = "seed-user@brokelads.dev"
-SEED_USER_COGNITO_UUID = "seed-user-cognito"
+SEED_USER_AUTH_UID = "seed-user-auth"
+
+# The e2e test user seeded into the Auth emulator (see _seed_emulator_user). The
+# email is not secret; the password is read from env, never hardcoded.
+E2E_USER_EMAIL_DEFAULT = "joshrobbinsukdev+test@gmail.com"
 
 
 @dataclass(frozen=True)
@@ -227,7 +232,7 @@ def _get_or_create_seed_user(db: Session) -> User:
     if user is None:
         user = User(
             email=SEED_USER_EMAIL,
-            cognito_uuid=SEED_USER_COGNITO_UUID,
+            auth_uid=SEED_USER_AUTH_UID,
             username="seed_bot",
             avatar="fox-red",
         )
@@ -346,6 +351,42 @@ def _entry_for(db: Session, user: User) -> CupEntry | None:
     )
 
 
+def _seed_emulator_user() -> None:
+    """Create the e2e test user in the Firebase Auth emulator, idempotently.
+
+    Emulator-only by construction: firebase-admin routes writes to the emulator
+    only when FIREBASE_AUTH_EMULATOR_HOST is set, so an unset host means there is
+    no emulator to seed — we skip rather than risk touching a real pool. The
+    password comes from env (E2E_TEST_PASSWORD), never hardcoded.
+    """
+    if not os.getenv("FIREBASE_AUTH_EMULATOR_HOST"):
+        print("emulator-user: FIREBASE_AUTH_EMULATOR_HOST unset — skipping.")
+        return
+
+    password = os.getenv("E2E_TEST_PASSWORD")
+    if not password:
+        print("emulator-user: E2E_TEST_PASSWORD unset — skipping.")
+        return
+
+    email = os.getenv("E2E_TEST_EMAIL", E2E_USER_EMAIL_DEFAULT)
+
+    import firebase_admin
+    from firebase_admin import auth
+
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+
+    try:
+        auth.create_user(email=email, password=password, email_verified=True)
+        print(f"emulator-user: created {email}.")
+    except auth.EmailAlreadyExistsError:
+        print(f"emulator-user: {email} already exists.")
+
+
+def cmd_emulator_user(db: Session) -> None:
+    _seed_emulator_user()
+
+
 def cmd_fixtures(db: Session) -> None:
     fixtures = _seed_fixtures(db)
     with_odds = sum(1 for f in fixtures if f.has_odds)
@@ -398,6 +439,7 @@ def cmd_all(db: Session) -> None:
     _place_bets(db, user)
     _resolve(db)
     _seed_streak_history(db, user)
+    _seed_emulator_user()
 
     _print_summary(db, user, balance_before)
 
@@ -447,7 +489,11 @@ def main() -> None:
         "--email", default=None, help="Target an existing user by email."
     )
     sub.add_parser(
-        "all", help="fixtures -> bets -> resolve -> streaks, with a summary."
+        "emulator-user", help="Create the e2e test user in the Auth emulator."
+    )
+    sub.add_parser(
+        "all",
+        help="fixtures -> bets -> resolve -> streaks -> emulator-user, with a summary.",
     )
 
     args = parser.parse_args()
@@ -466,6 +512,8 @@ def main() -> None:
             cmd_resolve(db)
         elif args.command == "streaks":
             cmd_streaks(db, args.email)
+        elif args.command == "emulator-user":
+            cmd_emulator_user(db)
         elif args.command == "all":
             cmd_all(db)
     finally:
