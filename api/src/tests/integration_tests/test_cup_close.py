@@ -95,9 +95,9 @@ def test_backstop_excludes_finished_but_unsettled_fixtures(db: Session) -> None:
 def test_ties_produce_co_winners_and_cups_won_counts_them(db: Session) -> None:
     start, end = _past_week()
     cup = make_cup(db, week_start=start, week_end=end, status=CupStatus.OPEN.value)
-    alice = make_user(db, email="a@test.com", cognito_uuid="a")
-    bob = make_user(db, email="b@test.com", cognito_uuid="b")
-    carol = make_user(db, email="c@test.com", cognito_uuid="c")
+    alice = make_user(db, email="a@test.com", auth_uid="a")
+    bob = make_user(db, email="b@test.com", auth_uid="b")
+    carol = make_user(db, email="c@test.com", auth_uid="c")
     a_entry = make_cup_entry(db, cup=cup, user=alice, balance=Decimal("1200.00"))
     b_entry = make_cup_entry(db, cup=cup, user=bob, balance=Decimal("1200.00"))
     c_entry = make_cup_entry(db, cup=cup, user=carol, balance=Decimal("800.00"))

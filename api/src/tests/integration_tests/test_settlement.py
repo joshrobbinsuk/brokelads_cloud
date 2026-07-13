@@ -117,8 +117,8 @@ def test_run_settle_bets_settles_by_fixture_outcome(db: Session) -> None:
     # Home win 2-1: the HOME bet wins, the AWAY bet loses.
     cup = make_cup(db)
     fixture = make_fixture(db, status="FT", home_goals=2, away_goals=1)
-    winner = make_user(db, email="w@test.com", cognito_uuid="w")
-    loser = make_user(db, email="l@test.com", cognito_uuid="l")
+    winner = make_user(db, email="w@test.com", auth_uid="w")
+    loser = make_user(db, email="l@test.com", auth_uid="l")
     winner_entry = make_cup_entry(db, cup=cup, user=winner, balance=Decimal("990.00"))
     loser_entry = make_cup_entry(db, cup=cup, user=loser, balance=Decimal("990.00"))
     won_bet = make_bet(

@@ -1,12 +1,12 @@
-"""Hard-delete-user, exercised through accounts.delete_user with the Cognito
-admin call faked (no AWS in the test env). Covers the cascade, the
-already-absent warning path, and the abort-before-DB guarantee."""
+"""Hard-delete-user, exercised through accounts.delete_user with the Firebase
+Auth delete_user call faked (no network in the test env). Covers the cascade,
+the already-absent warning path, and the abort-before-DB guarantee."""
 
 from datetime import date
 from decimal import Decimal
-from types import SimpleNamespace
 
 import pytest
+from firebase_admin import auth
 from sqlalchemy.orm import Session
 
 from src import accounts
@@ -27,25 +27,23 @@ from src.tests.factories import (
 )
 
 
-class _UserNotFound(Exception):
-    pass
+class _FakeDeleteUser:
+    """Stand-in for firebase_admin.auth.delete_user: records the uid it was
+    called with, or raises the configured error."""
 
-
-class _FakeCognito:
     def __init__(self, raise_exc: Exception | None = None) -> None:
         self.raise_exc = raise_exc
         self.deleted: list[str] = []
-        self.exceptions = SimpleNamespace(UserNotFoundException=_UserNotFound)
 
-    def admin_delete_user(self, UserPoolId: str, Username: str) -> None:
+    def __call__(self, uid: str) -> None:
         if self.raise_exc is not None:
             raise self.raise_exc
-        self.deleted.append(Username)
+        self.deleted.append(uid)
 
 
 def _user_with_history(db: Session) -> User:
     """A user carrying one of every row that FK-references them."""
-    user = make_user(db, email="doomed@test.com", cognito_uuid="sub-doomed")
+    user = make_user(db, email="doomed@test.com", auth_uid="sub-doomed")
     fixture = make_fixture(db)
     cup = make_cup(db)
     entry = make_cup_entry(db, cup=cup, user=user)
@@ -74,39 +72,40 @@ def _counts(db: Session, user_id: str) -> tuple[int, int, int, int, int]:
     )
 
 
-def test_delete_user_cascades_and_reports_cognito_deleted(
+def test_delete_user_cascades_and_reports_auth_deleted(
     db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(accounts, "_idp_client", _FakeCognito())
+    fake = _FakeDeleteUser()
+    monkeypatch.setattr(accounts.auth, "delete_user", fake)
     user = _user_with_history(db)
     user_id = user.id
 
-    cognito_deleted = accounts.delete_user(db, user)
+    auth_deleted = accounts.delete_user(db, user)
 
-    assert cognito_deleted is True
+    assert auth_deleted is True
+    assert fake.deleted == ["sub-doomed"]
     assert _counts(db, user_id) == (0, 0, 0, 0, 0)
 
 
-def test_delete_user_absent_cognito_still_deletes_and_reports_false(
+def test_delete_user_absent_auth_still_deletes_and_reports_false(
     db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake = _FakeCognito(raise_exc=_UserNotFound())
-    monkeypatch.setattr(accounts, "_idp_client", fake)
+    fake = _FakeDeleteUser(raise_exc=auth.UserNotFoundError("no such user"))
+    monkeypatch.setattr(accounts.auth, "delete_user", fake)
     user = _user_with_history(db)
     user_id = user.id
 
-    cognito_deleted = accounts.delete_user(db, user)
+    auth_deleted = accounts.delete_user(db, user)
 
-    assert cognito_deleted is False
+    assert auth_deleted is False
     assert _counts(db, user_id) == (0, 0, 0, 0, 0)
 
 
-def test_delete_user_aborts_db_when_cognito_errors(
+def test_delete_user_aborts_db_when_auth_errors(
     db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        accounts, "_idp_client", _FakeCognito(raise_exc=RuntimeError("no creds"))
-    )
+    fake = _FakeDeleteUser(raise_exc=RuntimeError("no creds"))
+    monkeypatch.setattr(accounts.auth, "delete_user", fake)
     user = _user_with_history(db)
     user_id = user.id
 
