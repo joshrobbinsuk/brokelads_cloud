@@ -83,12 +83,12 @@ CUP_TIMEZONE = "Europe/London"
 # truth; the FE mirrors them in lib/shirts.ts for rendering. Adding a member =
 # one entry per side. Keep both sides in lockstep.
 SHIRT_COLOURS = {
-    "red": "#ef4444",
-    "blue": "#3b82f6",
-    "green": "#22c55e",
-    "gold": "#f59e0b",
-    "purple": "#a855f7",
-    "teal": "#14b8a6",
+    "red": "#fca5a5",
+    "blue": "#93c5fd",
+    "green": "#86efac",
+    "gold": "#fcd34d",
+    "purple": "#d8b4fe",
+    "teal": "#5eead4",
     "white": "#ffffff",
 }
 SHIRT_PATTERNS = {"plain", "stripes", "hoops", "sash", "halves"}
