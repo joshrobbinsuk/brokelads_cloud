@@ -18,7 +18,7 @@ from src.client.queries import (
 )
 from src.client.schemas import SetShirtRequest, SetUsernameRequest
 from src.tests.factories import (
-    NULL_MOTIF_SHIRT,
+    ALT_SHIRT,
     VALID_SHIRT,
     make_cup,
     make_cup_entry,
@@ -108,17 +108,14 @@ class TestSetShirt:
         user = make_user(db)
         set_shirt(db, user, VALID_SHIRT)
 
-        updated = set_shirt(db, user, NULL_MOTIF_SHIRT)
+        updated = set_shirt(db, user, ALT_SHIRT)
 
-        assert updated.shirt == NULL_MOTIF_SHIRT
+        assert updated.shirt == ALT_SHIRT
 
 
 class TestSetShirtRequestValidation:
     def test_accepts_valid(self) -> None:
         assert SetShirtRequest.model_validate(VALID_SHIRT).model_dump() == VALID_SHIRT
-
-    def test_accepts_null_motif(self) -> None:
-        assert SetShirtRequest.model_validate(NULL_MOTIF_SHIRT).motif is None
 
     @pytest.mark.parametrize("field", ["background", "body", "pattern_colour"])
     def test_rejects_unknown_colour(self, field: str) -> None:
@@ -128,10 +125,6 @@ class TestSetShirtRequestValidation:
     def test_rejects_unknown_pattern(self) -> None:
         with pytest.raises(ValidationError):
             SetShirtRequest.model_validate({**VALID_SHIRT, "pattern": "plaid"})
-
-    def test_rejects_unknown_motif(self) -> None:
-        with pytest.raises(ValidationError):
-            SetShirtRequest.model_validate({**VALID_SHIRT, "motif": "dragon"})
 
 
 class TestLeaderboardUsername:

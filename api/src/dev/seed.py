@@ -232,9 +232,8 @@ def _seeded_fixtures(db: Session) -> list[Fixture]:
 SEED_USER_SHIRT: dict[str, object] = {
     "background": "teal",
     "body": "red",
-    "pattern": "stripes",
+    "pattern": "quarters",
     "pattern_colour": "white",
-    "motif": "fox",
 }
 
 

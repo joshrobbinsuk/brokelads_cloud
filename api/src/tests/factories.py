@@ -29,14 +29,12 @@ VALID_SHIRT: dict[str, object] = {
     "body": "red",
     "pattern": "stripes",
     "pattern_colour": "white",
-    "motif": "fox",
 }
-NULL_MOTIF_SHIRT: dict[str, object] = {
+ALT_SHIRT: dict[str, object] = {
     "background": "gold",
     "body": "blue",
-    "pattern": "hoops",
+    "pattern": "quarters",
     "pattern_colour": "white",
-    "motif": None,
 }
 
 

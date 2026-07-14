@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 from ..models import FixtureResult
-from ..settings import SHIRT_COLOURS, SHIRT_MOTIFS, SHIRT_PATTERNS
+from ..settings import SHIRT_COLOURS, SHIRT_PATTERNS
 
 
 class CreateBetRequest(BaseModel):
@@ -20,7 +20,6 @@ class SetShirtRequest(BaseModel):
     body: str
     pattern: str
     pattern_colour: str
-    motif: str | None
 
     @field_validator("background", "body", "pattern_colour")
     @classmethod
@@ -34,13 +33,6 @@ class SetShirtRequest(BaseModel):
     def validate_pattern(cls, value: str) -> str:
         if value not in SHIRT_PATTERNS:
             raise ValueError(f"Unknown pattern: {value}")
-        return value
-
-    @field_validator("motif")
-    @classmethod
-    def validate_motif(cls, value: str | None) -> str | None:
-        if value is not None and value not in SHIRT_MOTIFS:
-            raise ValueError(f"Unknown motif: {value}")
         return value
 
 

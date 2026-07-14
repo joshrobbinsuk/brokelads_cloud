@@ -77,54 +77,41 @@ CUP_BET_MAX_AGE_HOURS = 6
 CUP_TIMEZONE = "Europe/London"
 
 # Profile shirts: a football shirt on a colour disc is the user's visual
-# identity. A shirt is a five-slot object (background/body/pattern/
-# pattern_colour/motif) — slugs on the wire, never hexes/emojis — validated at
-# the request boundary (SetShirtRequest). These sets are the validation source of
-# truth; the FE mirrors them in lib/shirts.ts for rendering. Adding a member =
-# one entry per side. Keep both sides in lockstep.
+# identity. A shirt is a four-slot object (background/body/pattern/
+# pattern_colour) — slugs on the wire, never hexes — validated at the request
+# boundary (SetShirtRequest). These sets are the validation source of truth; the
+# FE mirrors them in lib/shirts.ts for rendering. Adding a member = one entry per
+# side (a new pattern also needs an SVG fragment in the FE shirt component). Keep
+# both sides in lockstep. Colours stay in one pastel tone (Tailwind -300) so any
+# background/body/pattern combination reads harmoniously at disc size.
 SHIRT_COLOURS = {
     "red": "#fca5a5",
-    "blue": "#93c5fd",
-    "green": "#86efac",
+    "orange": "#fdba74",
     "gold": "#fcd34d",
-    "purple": "#d8b4fe",
+    "yellow": "#fde047",
+    "lime": "#bef264",
+    "green": "#86efac",
+    "emerald": "#6ee7b7",
     "teal": "#5eead4",
+    "cyan": "#67e8f9",
+    "sky": "#7dd3fc",
+    "blue": "#93c5fd",
+    "indigo": "#a5b4fc",
+    "violet": "#c4b5fd",
+    "purple": "#d8b4fe",
+    "fuchsia": "#f0abfc",
+    "pink": "#f9a8d4",
+    "rose": "#fda4af",
+    "slate": "#cbd5e1",
     "white": "#ffffff",
 }
-SHIRT_PATTERNS = {"plain", "stripes", "hoops", "sash", "halves"}
-# Only slugs cross the wire, but the hex/emoji values here are the documented
-# source of truth the FE mirror (lib/shirts.ts) must match.
-SHIRT_MOTIFS = {
-    "ball": "⚽",
-    "fox": "🦊",
-    "goat": "🐐",
-    "beer": "🍺",
-    "fire": "🔥",
-    "huff": "😤",
-    "tophat": "🎩",
-    "crown": "👑",
-    "lion": "🦁",
-    "dog": "🐶",
-    "frog": "🐸",
-    "cold": "🥶",
-    "chicken": "🍗",
-    "dart": "🎯",
-    "glove": "🧤",
-    "rocket": "🚀",
-    "trophy": "🏆",
-    "medal": "🥇",
-    "star": "⭐",
-    "bolt": "⚡",
-    "skull": "💀",
-    "ghost": "👻",
-    "robot": "🤖",
-    "alien": "👽",
-    "wolf": "🐺",
-    "shark": "🦈",
-    "eagle": "🦅",
-    "bull": "🐂",
-    "snake": "🐍",
-    "monkey": "🐵",
-    "devil": "😈",
-    "dice": "🎲",
+SHIRT_PATTERNS = {
+    "plain",
+    "stripes",
+    "hoops",
+    "sash",
+    "halves",
+    "quarters",
+    "chevron",
+    "band",
 }

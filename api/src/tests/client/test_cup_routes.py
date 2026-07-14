@@ -16,7 +16,7 @@ from src.client.utils.firebase import verify_token
 from src.database import get_db
 from src.models import Cup, CupStatus, User
 from src.tests.factories import (
-    NULL_MOTIF_SHIRT,
+    ALT_SHIRT,
     VALID_SHIRT,
     make_cup,
     make_cup_entry,
@@ -69,7 +69,7 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
         email="rival@test.com",
         auth_uid="rival",
         username="rival",
-        shirt=NULL_MOTIF_SHIRT,
+        shirt=ALT_SHIRT,
     )
     make_cup_entry(db, cup=cup, user=other, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=user, balance=Decimal("900.00"))
@@ -82,7 +82,7 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
     assert body["your_rank"] == 2
     assert [row["username"] for row in body["leaderboard"]] == ["rival", "me"]
     assert body["leaderboard"][0]["balance"] == "1200.00"
-    assert body["leaderboard"][0]["shirt"] == NULL_MOTIF_SHIRT
+    assert body["leaderboard"][0]["shirt"] == ALT_SHIRT
     assert body["leaderboard"][1]["shirt"] == VALID_SHIRT
     # Wire contract: every leaderboard row carries both streak fields as ints.
     assert body["leaderboard"][0]["participation_streak"] == 0
