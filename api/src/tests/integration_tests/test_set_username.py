@@ -1,6 +1,6 @@
 """Username: freely renameable, case-insensitive uniqueness (excluding the
 caller's own row), and its appearance on the cup leaderboard alongside
-lifetime wins. Also covers the avatar service and its leaderboard/`/me`
+lifetime wins. Also covers the shirt service and its leaderboard/`/me`
 appearance."""
 
 from datetime import datetime, timezone
@@ -13,11 +13,17 @@ from sqlalchemy.orm import Session
 from src.client.cup import leaderboard
 from src.client.queries import (
     UsernameTakenError,
-    set_avatar,
+    set_shirt,
     set_username,
 )
-from src.client.schemas import SetAvatarRequest, SetUsernameRequest
-from src.tests.factories import make_cup, make_cup_entry, make_user
+from src.client.schemas import SetShirtRequest, SetUsernameRequest
+from src.tests.factories import (
+    ALT_SHIRT,
+    VALID_SHIRT,
+    make_cup,
+    make_cup_entry,
+    make_user,
+)
 
 
 class TestSetUsername:
@@ -90,32 +96,35 @@ class TestSetUsernameRequestValidation:
         assert SetUsernameRequest(username=ok).username == ok
 
 
-class TestSetAvatar:
-    def test_sets_avatar(self, db: Session) -> None:
+class TestSetShirt:
+    def test_sets_shirt(self, db: Session) -> None:
         user = make_user(db)
 
-        updated = set_avatar(db, user, "fox-red")
+        updated = set_shirt(db, user, VALID_SHIRT)
 
-        assert updated.avatar == "fox-red"
+        assert updated.shirt == VALID_SHIRT
 
-    def test_changes_avatar(self, db: Session) -> None:
+    def test_changes_shirt(self, db: Session) -> None:
         user = make_user(db)
-        set_avatar(db, user, "fox-red")
+        set_shirt(db, user, VALID_SHIRT)
 
-        updated = set_avatar(db, user, "goat-teal")
+        updated = set_shirt(db, user, ALT_SHIRT)
 
-        assert updated.avatar == "goat-teal"
+        assert updated.shirt == ALT_SHIRT
 
 
-class TestSetAvatarRequestValidation:
-    @pytest.mark.parametrize("ok", ["fox-red", "goat-teal", "rocket-purple"])
-    def test_accepts_valid(self, ok: str) -> None:
-        assert SetAvatarRequest(avatar=ok).avatar == ok
+class TestSetShirtRequestValidation:
+    def test_accepts_valid(self) -> None:
+        assert SetShirtRequest.model_validate(VALID_SHIRT).model_dump() == VALID_SHIRT
 
-    @pytest.mark.parametrize("bad", ["dragon-black", "fox-plaid", "fox", "", "FOX-RED"])
-    def test_rejects_unknown_id(self, bad: str) -> None:
+    @pytest.mark.parametrize("field", ["background", "body", "pattern_colour"])
+    def test_rejects_unknown_colour(self, field: str) -> None:
         with pytest.raises(ValidationError):
-            SetAvatarRequest(avatar=bad)
+            SetShirtRequest.model_validate({**VALID_SHIRT, field: "black"})
+
+    def test_rejects_unknown_pattern(self) -> None:
+        with pytest.raises(ValidationError):
+            SetShirtRequest.model_validate({**VALID_SHIRT, "pattern": "plaid"})
 
 
 class TestLeaderboardUsername:
@@ -138,16 +147,16 @@ class TestLeaderboardUsername:
         assert rows[0]["username"] == "champ"
         assert rows[0]["cups_won"] == 1
 
-    def test_row_carries_avatar(self, db: Session) -> None:
+    def test_row_carries_shirt(self, db: Session) -> None:
         cup = make_cup(db)
         user = make_user(db)
         set_username(db, user, "rookie")
-        set_avatar(db, user, "fox-red")
+        set_shirt(db, user, VALID_SHIRT)
         make_cup_entry(db, cup=cup, user=user)
 
         rows = leaderboard(db, cup)
 
-        assert rows[0]["avatar"] == "fox-red"
+        assert rows[0]["shirt"] == VALID_SHIRT
 
     def test_cups_won_defaults_to_zero(self, db: Session) -> None:
         cup = make_cup(db)

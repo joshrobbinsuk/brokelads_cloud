@@ -1,5 +1,5 @@
-"""Contract tests for PUT /client/me/avatar: happy path, 422 for an id outside
-the fixed set, and that it's reflected on GET /client/me."""
+"""Contract tests for PUT /client/me/shirt: happy path, 422 for a slug outside
+the fixed sets, and that it's reflected on GET /client/me."""
 
 from typing import Iterator
 
@@ -12,7 +12,7 @@ from src.client.routes import router as client_router
 from src.client.utils.firebase import verify_token
 from src.database import get_db
 from src.models import User
-from src.tests.factories import make_user
+from src.tests.factories import ALT_SHIRT, VALID_SHIRT, make_user
 
 
 @pytest.fixture()
@@ -33,22 +33,22 @@ def client(db: Session, user: User) -> Iterator[TestClient]:
         yield test_client
 
 
-def test_sets_avatar(client: TestClient) -> None:
-    resp = client.put("/client/me/avatar", json={"avatar": "fox-red"})
+def test_sets_shirt(client: TestClient) -> None:
+    resp = client.put("/client/me/shirt", json=VALID_SHIRT)
     assert resp.status_code == 200
-    assert resp.json()["avatar"] == "fox-red"
-    assert client.get("/client/me").json()["avatar"] == "fox-red"
+    assert resp.json()["shirt"] == VALID_SHIRT
+    assert client.get("/client/me").json()["shirt"] == VALID_SHIRT
 
 
-def test_invalid_id_returns_422(client: TestClient) -> None:
-    resp = client.put("/client/me/avatar", json={"avatar": "dragon-black"})
+def test_invalid_slug_returns_422(client: TestClient) -> None:
+    resp = client.put("/client/me/shirt", json={**VALID_SHIRT, "body": "black"})
     assert resp.status_code == 422
 
 
-def test_change_avatar_succeeds(client: TestClient) -> None:
-    client.put("/client/me/avatar", json={"avatar": "fox-red"})
+def test_change_shirt_succeeds(client: TestClient) -> None:
+    client.put("/client/me/shirt", json=VALID_SHIRT)
 
-    resp = client.put("/client/me/avatar", json={"avatar": "goat-teal"})
+    resp = client.put("/client/me/shirt", json=ALT_SHIRT)
 
     assert resp.status_code == 200
-    assert resp.json()["avatar"] == "goat-teal"
+    assert resp.json()["shirt"] == ALT_SHIRT

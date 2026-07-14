@@ -76,34 +76,42 @@ CUP_STARTING_STAKE = Decimal("1000")
 CUP_BET_MAX_AGE_HOURS = 6
 CUP_TIMEZONE = "Europe/London"
 
-# Profile avatars: emoji-on-colour-disc, no image assets/uploads. Stored as one
-# string id "<icon>-<colour>" on User.avatar. Shared contract with the FE —
-# keep both sides in lockstep.
-AVATAR_ICONS = {
-    "ball": "⚽",
-    "fox": "🦊",
-    "goat": "🐐",
-    "beer": "🍺",
-    "fire": "🔥",
-    "huff": "😤",
-    "tophat": "🎩",
-    "crown": "👑",
-    "lion": "🦁",
-    "dog": "🐶",
-    "frog": "🐸",
-    "cold": "🥶",
-    "chicken": "🍗",
-    "dart": "🎯",
-    "glove": "🧤",
-    "rocket": "🚀",
-}
-AVATAR_COLOURS = {
-    "red": "#ef4444",
-    "blue": "#3b82f6",
-    "green": "#22c55e",
-    "gold": "#f59e0b",
-    "purple": "#a855f7",
-    "teal": "#14b8a6",
+# Profile shirts: a football shirt on a colour disc is the user's visual
+# identity. A shirt is a four-slot object (background/body/pattern/
+# pattern_colour) — slugs on the wire, never hexes — validated at the request
+# boundary (SetShirtRequest). These sets are the validation source of truth; the
+# FE mirrors them in lib/shirts.ts for rendering. Adding a member = one entry per
+# side (a new pattern also needs an SVG fragment in the FE shirt component). Keep
+# both sides in lockstep. Colours stay in one pastel tone (Tailwind -300) so any
+# background/body/pattern combination reads harmoniously at disc size.
+SHIRT_COLOURS = {
+    "red": "#fca5a5",
+    "orange": "#fdba74",
+    "gold": "#fcd34d",
+    "yellow": "#fde047",
+    "lime": "#bef264",
+    "green": "#86efac",
+    "emerald": "#6ee7b7",
+    "teal": "#5eead4",
+    "cyan": "#67e8f9",
+    "sky": "#7dd3fc",
+    "blue": "#93c5fd",
+    "indigo": "#a5b4fc",
+    "violet": "#c4b5fd",
+    "purple": "#d8b4fe",
+    "fuchsia": "#f0abfc",
+    "pink": "#f9a8d4",
+    "rose": "#fda4af",
+    "slate": "#cbd5e1",
     "white": "#ffffff",
 }
-AVATAR_IDS = {f"{icon}-{colour}" for icon in AVATAR_ICONS for colour in AVATAR_COLOURS}
+SHIRT_PATTERNS = {
+    "plain",
+    "stripes",
+    "hoops",
+    "sash",
+    "halves",
+    "quarters",
+    "chevron",
+    "band",
+}
