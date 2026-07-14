@@ -92,7 +92,8 @@ SHIRT_COLOURS = {
     "white": "#ffffff",
 }
 SHIRT_PATTERNS = {"plain", "stripes", "hoops", "sash", "halves"}
-# Emoji values kept for reference/admin even though only slugs cross the wire.
+# Only slugs cross the wire, but the hex/emoji values here are the documented
+# source of truth the FE mirror (lib/shirts.ts) must match.
 SHIRT_MOTIFS = {
     "ball": "⚽",
     "fox": "🦊",

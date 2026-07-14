@@ -24,6 +24,21 @@ from src.models import (
 # one; tests that care about the exact value pass it explicitly.
 _rapid_api_id_seq = itertools.count(1)
 
+VALID_SHIRT: dict[str, object] = {
+    "background": "teal",
+    "body": "red",
+    "pattern": "stripes",
+    "pattern_colour": "white",
+    "motif": "fox",
+}
+NULL_MOTIF_SHIRT: dict[str, object] = {
+    "background": "gold",
+    "body": "blue",
+    "pattern": "hoops",
+    "pattern_colour": "white",
+    "motif": None,
+}
+
 
 def make_user(
     db: Session,

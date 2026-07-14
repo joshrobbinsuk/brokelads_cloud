@@ -17,22 +17,13 @@ from src.client.queries import (
     set_username,
 )
 from src.client.schemas import SetShirtRequest, SetUsernameRequest
-from src.tests.factories import make_cup, make_cup_entry, make_user
-
-RED_SHIRT: dict[str, object] = {
-    "background": "teal",
-    "body": "red",
-    "pattern": "stripes",
-    "pattern_colour": "white",
-    "motif": "fox",
-}
-BLUE_SHIRT: dict[str, object] = {
-    "background": "gold",
-    "body": "blue",
-    "pattern": "hoops",
-    "pattern_colour": "white",
-    "motif": None,
-}
+from src.tests.factories import (
+    NULL_MOTIF_SHIRT,
+    VALID_SHIRT,
+    make_cup,
+    make_cup_entry,
+    make_user,
+)
 
 
 class TestSetUsername:
@@ -109,38 +100,38 @@ class TestSetShirt:
     def test_sets_shirt(self, db: Session) -> None:
         user = make_user(db)
 
-        updated = set_shirt(db, user, RED_SHIRT)
+        updated = set_shirt(db, user, VALID_SHIRT)
 
-        assert updated.shirt == RED_SHIRT
+        assert updated.shirt == VALID_SHIRT
 
     def test_changes_shirt(self, db: Session) -> None:
         user = make_user(db)
-        set_shirt(db, user, RED_SHIRT)
+        set_shirt(db, user, VALID_SHIRT)
 
-        updated = set_shirt(db, user, BLUE_SHIRT)
+        updated = set_shirt(db, user, NULL_MOTIF_SHIRT)
 
-        assert updated.shirt == BLUE_SHIRT
+        assert updated.shirt == NULL_MOTIF_SHIRT
 
 
 class TestSetShirtRequestValidation:
     def test_accepts_valid(self) -> None:
-        assert SetShirtRequest.model_validate(RED_SHIRT).model_dump() == RED_SHIRT
+        assert SetShirtRequest.model_validate(VALID_SHIRT).model_dump() == VALID_SHIRT
 
     def test_accepts_null_motif(self) -> None:
-        assert SetShirtRequest.model_validate(BLUE_SHIRT).motif is None
+        assert SetShirtRequest.model_validate(NULL_MOTIF_SHIRT).motif is None
 
     @pytest.mark.parametrize("field", ["background", "body", "pattern_colour"])
     def test_rejects_unknown_colour(self, field: str) -> None:
         with pytest.raises(ValidationError):
-            SetShirtRequest.model_validate({**RED_SHIRT, field: "black"})
+            SetShirtRequest.model_validate({**VALID_SHIRT, field: "black"})
 
     def test_rejects_unknown_pattern(self) -> None:
         with pytest.raises(ValidationError):
-            SetShirtRequest.model_validate({**RED_SHIRT, "pattern": "plaid"})
+            SetShirtRequest.model_validate({**VALID_SHIRT, "pattern": "plaid"})
 
     def test_rejects_unknown_motif(self) -> None:
         with pytest.raises(ValidationError):
-            SetShirtRequest.model_validate({**RED_SHIRT, "motif": "dragon"})
+            SetShirtRequest.model_validate({**VALID_SHIRT, "motif": "dragon"})
 
 
 class TestLeaderboardUsername:
@@ -167,12 +158,12 @@ class TestLeaderboardUsername:
         cup = make_cup(db)
         user = make_user(db)
         set_username(db, user, "rookie")
-        set_shirt(db, user, RED_SHIRT)
+        set_shirt(db, user, VALID_SHIRT)
         make_cup_entry(db, cup=cup, user=user)
 
         rows = leaderboard(db, cup)
 
-        assert rows[0]["shirt"] == RED_SHIRT
+        assert rows[0]["shirt"] == VALID_SHIRT
 
     def test_cups_won_defaults_to_zero(self, db: Session) -> None:
         cup = make_cup(db)

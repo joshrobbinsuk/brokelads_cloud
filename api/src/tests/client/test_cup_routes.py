@@ -15,23 +15,14 @@ from src.client.routes import router as client_router
 from src.client.utils.firebase import verify_token
 from src.database import get_db
 from src.models import Cup, CupStatus, User
-from src.tests.factories import make_cup, make_cup_entry, make_user
+from src.tests.factories import (
+    NULL_MOTIF_SHIRT,
+    VALID_SHIRT,
+    make_cup,
+    make_cup_entry,
+    make_user,
+)
 from src.utils.weeks import current_week_window
-
-ME_SHIRT: dict[str, object] = {
-    "background": "teal",
-    "body": "red",
-    "pattern": "stripes",
-    "pattern_colour": "white",
-    "motif": "fox",
-}
-RIVAL_SHIRT: dict[str, object] = {
-    "background": "purple",
-    "body": "green",
-    "pattern": "sash",
-    "pattern_colour": "gold",
-    "motif": "goat",
-}
 
 
 @pytest.fixture()
@@ -72,13 +63,13 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
 ) -> None:
     cup = _current_cup(db)
     user.username = "me"
-    user.shirt = ME_SHIRT
+    user.shirt = VALID_SHIRT
     other = make_user(
         db,
         email="rival@test.com",
         auth_uid="rival",
         username="rival",
-        shirt=RIVAL_SHIRT,
+        shirt=NULL_MOTIF_SHIRT,
     )
     make_cup_entry(db, cup=cup, user=other, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=user, balance=Decimal("900.00"))
@@ -91,8 +82,8 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
     assert body["your_rank"] == 2
     assert [row["username"] for row in body["leaderboard"]] == ["rival", "me"]
     assert body["leaderboard"][0]["balance"] == "1200.00"
-    assert body["leaderboard"][0]["shirt"] == RIVAL_SHIRT
-    assert body["leaderboard"][1]["shirt"] == ME_SHIRT
+    assert body["leaderboard"][0]["shirt"] == NULL_MOTIF_SHIRT
+    assert body["leaderboard"][1]["shirt"] == VALID_SHIRT
     # Wire contract: every leaderboard row carries both streak fields as ints.
     assert body["leaderboard"][0]["participation_streak"] == 0
     assert body["leaderboard"][0]["profit_streak"] == 0

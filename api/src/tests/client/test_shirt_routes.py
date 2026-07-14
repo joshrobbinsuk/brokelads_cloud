@@ -12,22 +12,7 @@ from src.client.routes import router as client_router
 from src.client.utils.firebase import verify_token
 from src.database import get_db
 from src.models import User
-from src.tests.factories import make_user
-
-RED_SHIRT = {
-    "background": "teal",
-    "body": "red",
-    "pattern": "stripes",
-    "pattern_colour": "white",
-    "motif": "fox",
-}
-BLUE_SHIRT = {
-    "background": "gold",
-    "body": "blue",
-    "pattern": "hoops",
-    "pattern_colour": "white",
-    "motif": None,
-}
+from src.tests.factories import NULL_MOTIF_SHIRT, VALID_SHIRT, make_user
 
 
 @pytest.fixture()
@@ -49,27 +34,27 @@ def client(db: Session, user: User) -> Iterator[TestClient]:
 
 
 def test_sets_shirt(client: TestClient) -> None:
-    resp = client.put("/client/me/shirt", json=RED_SHIRT)
+    resp = client.put("/client/me/shirt", json=VALID_SHIRT)
     assert resp.status_code == 200
-    assert resp.json()["shirt"] == RED_SHIRT
-    assert client.get("/client/me").json()["shirt"] == RED_SHIRT
+    assert resp.json()["shirt"] == VALID_SHIRT
+    assert client.get("/client/me").json()["shirt"] == VALID_SHIRT
 
 
 def test_null_motif_is_accepted(client: TestClient) -> None:
-    resp = client.put("/client/me/shirt", json=BLUE_SHIRT)
+    resp = client.put("/client/me/shirt", json=NULL_MOTIF_SHIRT)
     assert resp.status_code == 200
     assert resp.json()["shirt"]["motif"] is None
 
 
 def test_invalid_slug_returns_422(client: TestClient) -> None:
-    resp = client.put("/client/me/shirt", json={**RED_SHIRT, "body": "black"})
+    resp = client.put("/client/me/shirt", json={**VALID_SHIRT, "body": "black"})
     assert resp.status_code == 422
 
 
 def test_change_shirt_succeeds(client: TestClient) -> None:
-    client.put("/client/me/shirt", json=RED_SHIRT)
+    client.put("/client/me/shirt", json=VALID_SHIRT)
 
-    resp = client.put("/client/me/shirt", json=BLUE_SHIRT)
+    resp = client.put("/client/me/shirt", json=NULL_MOTIF_SHIRT)
 
     assert resp.status_code == 200
-    assert resp.json()["shirt"] == BLUE_SHIRT
+    assert resp.json()["shirt"] == NULL_MOTIF_SHIRT
