@@ -229,6 +229,15 @@ def _seeded_fixtures(db: Session) -> list[Fixture]:
     return [by_rapid[rid] for rid in rapid_ids if rid in by_rapid]
 
 
+SEED_USER_SHIRT: dict[str, object] = {
+    "background": "teal",
+    "body": "red",
+    "pattern": "stripes",
+    "pattern_colour": "white",
+    "motif": "fox",
+}
+
+
 def _get_or_create_seed_user(db: Session) -> User:
     user = db.query(User).filter(User.email == SEED_USER_EMAIL).first()
     if user is None:
@@ -236,13 +245,13 @@ def _get_or_create_seed_user(db: Session) -> User:
             email=SEED_USER_EMAIL,
             auth_uid=SEED_USER_AUTH_UID,
             username="seed_bot",
-            avatar="fox-red",
+            shirt=SEED_USER_SHIRT,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-    elif user.avatar is None:
-        user.avatar = "fox-red"
+    elif user.shirt is None:
+        user.shirt = SEED_USER_SHIRT
         db.commit()
         db.refresh(user)
     return user

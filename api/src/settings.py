@@ -76,10 +76,24 @@ CUP_STARTING_STAKE = Decimal("1000")
 CUP_BET_MAX_AGE_HOURS = 6
 CUP_TIMEZONE = "Europe/London"
 
-# Profile avatars: emoji-on-colour-disc, no image assets/uploads. Stored as one
-# string id "<icon>-<colour>" on User.avatar. Shared contract with the FE —
-# keep both sides in lockstep.
-AVATAR_ICONS = {
+# Profile shirts: a football shirt on a colour disc is the user's visual
+# identity. A shirt is a five-slot object (background/body/pattern/
+# pattern_colour/motif) — slugs on the wire, never hexes/emojis — validated at
+# the request boundary (SetShirtRequest). These sets are the validation source of
+# truth; the FE mirrors them in lib/shirts.ts for rendering. Adding a member =
+# one entry per side. Keep both sides in lockstep.
+SHIRT_COLOURS = {
+    "red": "#ef4444",
+    "blue": "#3b82f6",
+    "green": "#22c55e",
+    "gold": "#f59e0b",
+    "purple": "#a855f7",
+    "teal": "#14b8a6",
+    "white": "#ffffff",
+}
+SHIRT_PATTERNS = {"plain", "stripes", "hoops", "sash", "halves"}
+# Emoji values kept for reference/admin even though only slugs cross the wire.
+SHIRT_MOTIFS = {
     "ball": "⚽",
     "fox": "🦊",
     "goat": "🐐",
@@ -97,13 +111,3 @@ AVATAR_ICONS = {
     "glove": "🧤",
     "rocket": "🚀",
 }
-AVATAR_COLOURS = {
-    "red": "#ef4444",
-    "blue": "#3b82f6",
-    "green": "#22c55e",
-    "gold": "#f59e0b",
-    "purple": "#a855f7",
-    "teal": "#14b8a6",
-    "white": "#ffffff",
-}
-AVATAR_IDS = {f"{icon}-{colour}" for icon in AVATAR_ICONS for colour in AVATAR_COLOURS}

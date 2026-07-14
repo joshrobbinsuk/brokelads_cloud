@@ -108,18 +108,18 @@ def set_username(db: Session, user: User, username: str) -> User:
         raise
 
 
-def set_avatar(db: Session, user: User, avatar: str) -> User:
-    """Set a user's avatar. Membership in the valid id set is validated at the
-    request schema boundary (SetAvatarRequest)."""
+def set_shirt(db: Session, user: User, shirt: dict[str, object]) -> User:
+    """Set a user's shirt. Each slot's slug is validated at the request schema
+    boundary (SetShirtRequest)."""
     try:
-        user.avatar = avatar
+        user.shirt = shirt
         db.commit()
         db.refresh(user)
-        logger.info(f"User {user.email} set avatar {avatar}")
+        logger.info(f"User {user.email} set shirt {shirt}")
         return user
     except Exception:
         db.rollback()
-        logger.exception(f"Error setting avatar for {user.email}")
+        logger.exception(f"Error setting shirt for {user.email}")
         raise
 
 

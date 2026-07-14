@@ -73,10 +73,10 @@ class User(BaseModel):
     # Freely changeable; case-insensitively unique (see the index above). Length
     # limit is enforced at the request boundary (SetUsernameRequest).
     username: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # `<icon>-<colour>` id from the fixed set in settings.AVATAR_IDS. Null = never
-    # chosen -> FE renders a fallback disc. Validated at the request boundary
-    # (SetAvatarRequest), not here.
-    avatar: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Five-slot shirt object (background/body/pattern/pattern_colour/motif) whose
+    # slugs come from the fixed sets in settings. Null = never chosen -> FE renders
+    # a fallback disc. Validated at the request boundary (SetShirtRequest), not here.
+    shirt: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
 
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="user")
 

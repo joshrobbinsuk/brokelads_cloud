@@ -32,14 +32,14 @@ def make_user(
     auth_uid: str = "auth-1",
     status: str = UserStatus.ACTIVE.value,
     username: str | None = None,
-    avatar: str | None = None,
+    shirt: dict[str, object] | None = None,
 ) -> User:
     user = User(
         email=email,
         auth_uid=auth_uid,
         status=status,
         username=username,
-        avatar=avatar,
+        shirt=shirt,
     )
     db.add(user)
     db.commit()
