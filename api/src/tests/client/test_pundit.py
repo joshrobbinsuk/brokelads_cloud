@@ -4,7 +4,7 @@ The OpenAI call is injected: tests pass a fake `completion_stream` into
 `stream_pundit_response`, so the suite needs no API key and hits no network.
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -24,6 +24,10 @@ from src.client.queries import (
 from src.client.utils.user import get_current_user
 from src.models import BetOutcome, FixtureResult, User
 from src.client.pundit import (
+    CompletionChunk,
+    CompletionSearchFinished,
+    CompletionSearchStarted,
+    CompletionTextDelta,
     PunditContext,
     _build_responses_input,
     build_pundit_context,
@@ -51,12 +55,14 @@ def _parse_sse(body: str) -> list[tuple[str, str]]:
     return events
 
 
-def _inject_fake_stream(monkeypatch: pytest.MonkeyPatch, chunks: list[str]) -> None:
+def _inject_fake_stream(
+    monkeypatch: pytest.MonkeyPatch, chunks: Sequence[CompletionChunk | str]
+) -> None:
     async def fake_completion_stream(
         context: PunditContext,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[CompletionChunk, None]:
         for chunk in chunks:
-            yield chunk
+            yield CompletionTextDelta(chunk) if isinstance(chunk, str) else chunk
 
     def patched(context: PunditContext) -> object:
         return stream_pundit_response(context, completion_stream=fake_completion_stream)
@@ -97,9 +103,11 @@ def test_drops_fixtures_outside_visible_slate(
 
     grounded: dict[str, list[str]] = {}
 
-    async def capturing_stream(context: PunditContext) -> AsyncGenerator[str, None]:
+    async def capturing_stream(
+        context: PunditContext,
+    ) -> AsyncGenerator[CompletionChunk, None]:
         grounded["fixture_ids"] = [f["fixture_id"] for f in context.fixtures]
-        yield "ok"
+        yield CompletionTextDelta("ok")
 
     def patched(context: PunditContext) -> object:
         return stream_pundit_response(context, completion_stream=capturing_stream)
@@ -159,6 +167,52 @@ def test_streams_expected_sse_contract(
     assert len(deltas) >= 1
     complete = json.loads(events[-2][1])["content"]
     assert "".join(deltas) == complete == "Hello world"
+
+
+def test_web_search_surfaces_as_status_events(
+    client: TestClient,
+    app: FastAPI,
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A search brackets itself in additive `status` frames — the delta contract
+    is untouched, so a client that ignores unknown events sees what it saw
+    before."""
+    user = make_user(db)
+    _override_user(app, user)
+    fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
+    _inject_fake_stream(
+        monkeypatch,
+        [
+            CompletionSearchStarted(),
+            CompletionSearchFinished(),
+            "Arsenal ",
+            "look tasty",
+        ],
+    )
+
+    resp = client.post(
+        "/client/pundit",
+        json={
+            "fixture_ids": [fixture.id],
+            "conversation": [{"role": "user", "content": "Team news?"}],
+        },
+    )
+
+    assert resp.status_code == 200
+
+    import json
+
+    events = _parse_sse(resp.text)
+    names = [name for name, _ in events]
+
+    assert names[:3] == ["message_start", "status", "status"]
+    assert json.loads(events[1][1]) == {"status": "searching"}
+    assert json.loads(events[2][1]) == {"status": "thinking"}
+
+    deltas = [json.loads(d)["delta"] for n, d in events if n == "message_delta"]
+    assert "".join(deltas) == "Arsenal look tasty"
+    assert names[-2:] == ["message_complete", "done"]
 
 
 def test_recent_bet_summaries_limited_and_ordered(db: Session) -> None:
@@ -321,9 +375,12 @@ def test_mid_stream_error_emits_error_then_done() -> None:
     """When the completion stream raises after message_start, the contract is
     message_start, error, done(error)."""
 
-    async def failing_stream(context: PunditContext) -> AsyncGenerator[str, None]:
+    async def failing_stream(
+        context: PunditContext,
+    ) -> AsyncGenerator[CompletionChunk, None]:
         raise RuntimeError("boom")
-        yield ""  # type: ignore[unreachable] # only here to mark it a generator
+        # only here to mark it a generator
+        yield CompletionTextDelta("")  # type: ignore[unreachable]
 
     async def collect() -> list[str]:
         context = PunditContext(
@@ -353,11 +410,13 @@ def test_disconnect_closes_completion_stream() -> None:
     injected completion stream — its cleanup runs synchronously, not at GC."""
     closed = {"value": False}
 
-    async def endless_stream(context: PunditContext) -> AsyncGenerator[str, None]:
+    async def endless_stream(
+        context: PunditContext,
+    ) -> AsyncGenerator[CompletionChunk, None]:
         try:
             index = 0
             while True:
-                yield f"chunk-{index} "
+                yield CompletionTextDelta(f"chunk-{index} ")
                 index += 1
         finally:
             closed["value"] = True
@@ -399,9 +458,9 @@ def test_source_links_stripped_from_stream() -> None:
 
     async def fake_completion_stream(
         context: PunditContext,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[CompletionChunk, None]:
         for chunk in chunks:
-            yield chunk
+            yield CompletionTextDelta(chunk)
 
     context = PunditContext(
         system_prompt="p",
