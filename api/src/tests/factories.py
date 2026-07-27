@@ -24,19 +24,6 @@ from src.models import (
 # one; tests that care about the exact value pass it explicitly.
 _rapid_api_id_seq = itertools.count(1)
 
-VALID_SHIRT: dict[str, object] = {
-    "background": "teal",
-    "body": "red",
-    "pattern": "stripes",
-    "pattern_colour": "white",
-}
-ALT_SHIRT: dict[str, object] = {
-    "background": "gold",
-    "body": "blue",
-    "pattern": "quarters",
-    "pattern_colour": "white",
-}
-
 
 def make_user(
     db: Session,
@@ -45,14 +32,12 @@ def make_user(
     auth_uid: str = "auth-1",
     status: str = UserStatus.ACTIVE.value,
     username: str | None = None,
-    shirt: dict[str, object] | None = None,
 ) -> User:
     user = User(
         email=email,
         auth_uid=auth_uid,
         status=status,
         username=username,
-        shirt=shirt,
     )
     db.add(user)
     db.commit()

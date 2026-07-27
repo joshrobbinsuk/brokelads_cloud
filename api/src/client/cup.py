@@ -137,7 +137,6 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
             select(
                 CupEntry.user_id.label("user_id"),
                 User.username.label("username"),
-                User.shirt.label("shirt"),
                 CupEntry.balance.label("balance"),
                 CupEntry.final_rank.label("final_rank"),
                 func.coalesce(wins.c.cups_won, 0).label("cups_won"),
@@ -167,7 +166,6 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 "rank": row["final_rank"] if settled else index + 1,
                 "user_id": row["user_id"],
                 "username": row["username"],
-                "shirt": row["shirt"],
                 "balance": str(row["balance"]),
                 "is_winner": row["final_rank"] == 1,
                 "cups_won": row["cups_won"],

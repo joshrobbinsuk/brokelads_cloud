@@ -108,21 +108,6 @@ def set_username(db: Session, user: User, username: str) -> User:
         raise
 
 
-def set_shirt(db: Session, user: User, shirt: dict[str, object]) -> User:
-    """Set a user's shirt. Each slot's slug is validated at the request schema
-    boundary (SetShirtRequest)."""
-    try:
-        user.shirt = shirt
-        db.commit()
-        db.refresh(user)
-        logger.info(f"User {user.email} set shirt {shirt}")
-        return user
-    except Exception:
-        db.rollback()
-        logger.exception(f"Error setting shirt for {user.email}")
-        raise
-
-
 def get_active_leagues(db: Session) -> list[League]:
     try:
         return db.query(League).filter(League.active.is_(True)).all()
