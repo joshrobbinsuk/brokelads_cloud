@@ -62,6 +62,7 @@ module "app" {
   admin_google_client_id     = var.google_oauth_client_id
   admin_google_client_secret = var.google_oauth_client_secret
   firebase_api_key           = module.identity_platform.firebase_api_key
+  firebase_auth_domain       = "dev.brokelads.co.uk"
   openai_model               = var.openai_model
 
   cors_origins = [
