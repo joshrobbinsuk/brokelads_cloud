@@ -40,6 +40,7 @@ module "identity_platform" {
 
   authorized_domains = [
     "localhost",
+    "dev.brokelads.co.uk",
     "brokelads.co.uk",
     "www.brokelads.co.uk",
     "bl-fe.vercel.app",
@@ -64,6 +65,7 @@ module "app" {
   openai_model               = var.openai_model
 
   cors_origins = [
+    "https://dev.brokelads.co.uk",
     "https://brokelads.co.uk",
     "https://www.brokelads.co.uk",
     "https://bl-fe.vercel.app",

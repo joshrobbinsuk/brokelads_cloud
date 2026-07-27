@@ -89,7 +89,7 @@ variable "firebase_api_key" {
 variable "firebase_auth_domain" {
   description = "authDomain the FE initialises Firebase with (the branded custom domain)"
   type        = string
-  default     = "brokelads.co.uk"
+  default     = "dev.brokelads.co.uk"
 }
 
 # --- Neon ---
