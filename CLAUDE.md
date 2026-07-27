@@ -31,7 +31,7 @@ Football status codes drive settlement — see the `*_STATUSES` lists in `settin
 
 ## Conventions
 
-- Public-surface methods wrap their body in `try/except` that logs (`logger.error`/`logger.exception`) then converts to `HTTPException`; internal helpers stay clean. Match this for new endpoints. Domain validation failures raise `ClientSideError` (in `client/queries.py`) → mapped to 400.
+- Public-surface methods wrap their body in `try/except` that logs (`logger.error`/`logger.exception`) then converts to `HTTPException`; internal helpers stay clean. Match this for new endpoints. Domain validation failures raise `ClientSideError` (in `client/queries.py`) carrying a `ClientErrorCode` → mapped to 400 with `detail` as `{"code", "message"}`, so the FE branches on the code and the prose stays free to reword. Add a code to the enum for any new domain rejection.
 - Reads via ORM; bulk ingestion via `insert()`/`update()` statements.
 - Fully typed — mypy is strict (`disallow_untyped_defs`). Keep new code annotated.
 

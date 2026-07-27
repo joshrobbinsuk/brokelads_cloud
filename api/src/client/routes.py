@@ -121,7 +121,7 @@ async def place_bet(
     except ClientSideError as e:
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail={"code": e.code.value, "message": e.message},
         )
     except Exception:
         logger.exception("Error placing bet")

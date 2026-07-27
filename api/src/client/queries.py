@@ -1,5 +1,6 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from enum import Enum
 from typing import Sequence
 
 from sqlalchemy.engine import RowMapping
@@ -29,8 +30,22 @@ from ..utils.weeks import current_week_window
 from .cup import get_or_create_current_cup, get_or_create_entry
 
 
+class ClientErrorCode(str, Enum):
+    """Machine-readable codes for domain rejections — the wire contract the
+    frontend branches on. The prose message is for display only."""
+
+    FIXTURE_INVALID_OR_NO_ODDS = "FIXTURE_INVALID_OR_NO_ODDS"
+    FIXTURE_STARTED = "FIXTURE_STARTED"
+    FIXTURE_OUTSIDE_CUP_WEEK = "FIXTURE_OUTSIDE_CUP_WEEK"
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    ODDS_UNAVAILABLE = "ODDS_UNAVAILABLE"
+
+
 class ClientSideError(Exception):
-    pass
+    def __init__(self, code: ClientErrorCode, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 class UsernameTakenError(Exception):
@@ -295,19 +310,29 @@ def create_bet(
         now = datetime.now(timezone.utc)
         fixture = db.query(Fixture).filter(Fixture.id == fixture_id).first()
         if not fixture or not fixture.has_odds:
-            raise ClientSideError("Invalid fixture or fixture does not have odds")
+            raise ClientSideError(
+                ClientErrorCode.FIXTURE_INVALID_OR_NO_ODDS,
+                "Invalid fixture or fixture does not have odds",
+            )
 
         if fixture.status not in NOT_STARTED_STATUSES:
-            raise ClientSideError("Fixture has already started")
+            raise ClientSideError(
+                ClientErrorCode.FIXTURE_STARTED, "Fixture has already started"
+            )
 
         cup = get_or_create_current_cup(db, now)
         if not (cup.week_start <= fixture.kick_off < cup.week_end):
-            raise ClientSideError("Fixture is outside this week's cup")
+            raise ClientSideError(
+                ClientErrorCode.FIXTURE_OUTSIDE_CUP_WEEK,
+                "Fixture is outside this week's cup",
+            )
 
         entry = get_or_create_entry(db, cup, user)
         # Not row-locked: accepted for friends-scale v1 (see CLAUDE.md Known gaps).
         if entry.balance < stake:
-            raise ClientSideError("Insufficient funds")
+            raise ClientSideError(
+                ClientErrorCode.INSUFFICIENT_FUNDS, "Insufficient funds"
+            )
 
         odds_map = {
             FixtureResult.HOME: fixture.home_odds,
@@ -317,7 +342,9 @@ def create_bet(
 
         odds = odds_map.get(choice)
         if odds is None:
-            raise ClientSideError("Fixture odds are unavailable")
+            raise ClientSideError(
+                ClientErrorCode.ODDS_UNAVAILABLE, "Fixture odds are unavailable"
+            )
         # Decimal odds already include the stake in the total return.
         returns = stake * odds
 
