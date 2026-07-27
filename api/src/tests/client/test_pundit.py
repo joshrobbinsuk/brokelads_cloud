@@ -25,6 +25,7 @@ from src.client.utils.user import get_current_user
 from src.models import BetOutcome, FixtureResult, User
 from src.client.pundit import (
     CompletionChunk,
+    CompletionSearchFinished,
     CompletionSearchStarted,
     CompletionTextDelta,
     PunditContext,
@@ -168,19 +169,26 @@ def test_streams_expected_sse_contract(
     assert "".join(deltas) == complete == "Hello world"
 
 
-def test_web_search_surfaces_as_status_event(
+def test_web_search_surfaces_as_status_events(
     client: TestClient,
     app: FastAPI,
     db: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A search is an additive `status` frame — the delta contract is untouched,
-    so a client that ignores unknown events sees exactly what it saw before."""
+    """A search brackets itself in additive `status` frames — the delta contract
+    is untouched, so a client that ignores unknown events sees what it saw
+    before."""
     user = make_user(db)
     _override_user(app, user)
     fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
     _inject_fake_stream(
-        monkeypatch, [CompletionSearchStarted(), "Arsenal ", "look tasty"]
+        monkeypatch,
+        [
+            CompletionSearchStarted(),
+            CompletionSearchFinished(),
+            "Arsenal ",
+            "look tasty",
+        ],
     )
 
     resp = client.post(
@@ -198,8 +206,9 @@ def test_web_search_surfaces_as_status_event(
     events = _parse_sse(resp.text)
     names = [name for name, _ in events]
 
-    assert names[:2] == ["message_start", "status"]
+    assert names[:3] == ["message_start", "status", "status"]
     assert json.loads(events[1][1]) == {"status": "searching"}
+    assert json.loads(events[2][1]) == {"status": "thinking"}
 
     deltas = [json.loads(d)["delta"] for n, d in events if n == "message_delta"]
     assert "".join(deltas) == "Arsenal look tasty"

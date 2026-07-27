@@ -48,7 +48,14 @@ class CompletionSearchStarted:
     """The model kicked off a server-side web search."""
 
 
-CompletionChunk = CompletionTextDelta | CompletionSearchStarted
+@dataclass(frozen=True)
+class CompletionSearchFinished:
+    """A server-side web search returned; the model is back to composing."""
+
+
+CompletionChunk = (
+    CompletionTextDelta | CompletionSearchStarted | CompletionSearchFinished
+)
 CompletionStream = Callable[[PunditContext], AsyncGenerator[CompletionChunk, None]]
 
 
@@ -166,18 +173,13 @@ async def openai_completion_stream(
             stream=True,
         )
         async with cast("AsyncStream[ResponseStreamEvent]", result) as stream:
-            announced_searches: set[str] = set()
             async for event in stream:
                 if event.type == "response.output_text.delta":
                     yield CompletionTextDelta(event.delta)
-                elif (
-                    event.type == "response.web_search_call.in_progress"
-                    or event.type == "response.web_search_call.searching"
-                ):
-                    # Both events fire for one search — announce it once.
-                    if event.item_id not in announced_searches:
-                        announced_searches.add(event.item_id)
-                        yield CompletionSearchStarted()
+                elif event.type == "response.web_search_call.in_progress":
+                    yield CompletionSearchStarted()
+                elif event.type == "response.web_search_call.completed":
+                    yield CompletionSearchFinished()
 
 
 _MD_LINK = re.compile(r"\(?\[[^\]]*\]\((?:https?://|www\.)[^)]*\)\)?")
@@ -246,6 +248,9 @@ async def stream_pundit_response(
         async for chunk in inner:
             if isinstance(chunk, CompletionSearchStarted):
                 yield PunditStreamEvent(event="status", data={"status": "searching"})
+                continue
+            if isinstance(chunk, CompletionSearchFinished):
+                yield PunditStreamEvent(event="status", data={"status": "thinking"})
                 continue
             out = stripper.feed(chunk.text)
             if out:
