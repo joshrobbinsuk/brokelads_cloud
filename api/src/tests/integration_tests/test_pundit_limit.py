@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session
 
 from src import settings
 from src.client import routes as routes_module
-from src.client.pundit import PunditContext, stream_pundit_response
+from src.client.pundit import (
+    CompletionChunk,
+    CompletionTextDelta,
+    PunditContext,
+    stream_pundit_response,
+)
 from src.client.queries import increment_pundit_usage, pundit_count_today
 from src.client.utils.user import get_current_user
 from src.models import PunditUsage, User
@@ -25,9 +30,9 @@ def _nobody_unlimited(monkeypatch: pytest.MonkeyPatch) -> None:
 def _inject_fake_stream(monkeypatch: pytest.MonkeyPatch, chunks: list[str]) -> None:
     async def fake_completion_stream(
         context: PunditContext,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[CompletionChunk, None]:
         for chunk in chunks:
-            yield chunk
+            yield CompletionTextDelta(chunk)
 
     def patched(context: PunditContext) -> object:
         return stream_pundit_response(context, completion_stream=fake_completion_stream)

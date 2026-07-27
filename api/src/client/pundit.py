@@ -38,7 +38,18 @@ class PunditContext:
     conversation: list[dict[str, str]]
 
 
-CompletionStream = Callable[[PunditContext], AsyncGenerator[str, None]]
+@dataclass(frozen=True)
+class CompletionTextDelta:
+    text: str
+
+
+@dataclass(frozen=True)
+class CompletionSearchStarted:
+    """The model kicked off a server-side web search."""
+
+
+CompletionChunk = CompletionTextDelta | CompletionSearchStarted
+CompletionStream = Callable[[PunditContext], AsyncGenerator[CompletionChunk, None]]
 
 
 def _normalize_email(email: str) -> str:
@@ -136,7 +147,7 @@ def _build_responses_input(context: PunditContext) -> list[dict[str, str]]:
 
 async def openai_completion_stream(
     context: PunditContext,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[CompletionChunk, None]:
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not set")
 
@@ -144,7 +155,8 @@ async def openai_completion_stream(
     # is released whether the consumer finishes, raises, or is cancelled mid-stream
     # (Starlette throws GeneratorExit/CancelledError in here on client disconnect).
     # Responses API + the built-in web_search tool: the model decides when to search,
-    # OpenAI runs it server-side, and we stream only the final answer text deltas.
+    # OpenAI runs it server-side, and we stream the answer text deltas plus a
+    # marker each time a search starts (the UI says so while it runs).
     async with AsyncOpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL) as client:
         result = await client.responses.create(
             model=context.model,
@@ -154,9 +166,18 @@ async def openai_completion_stream(
             stream=True,
         )
         async with cast("AsyncStream[ResponseStreamEvent]", result) as stream:
+            announced_searches: set[str] = set()
             async for event in stream:
                 if event.type == "response.output_text.delta":
-                    yield event.delta
+                    yield CompletionTextDelta(event.delta)
+                elif (
+                    event.type == "response.web_search_call.in_progress"
+                    or event.type == "response.web_search_call.searching"
+                ):
+                    # Both events fire for one search — announce it once.
+                    if event.item_id not in announced_searches:
+                        announced_searches.add(event.item_id)
+                        yield CompletionSearchStarted()
 
 
 _MD_LINK = re.compile(r"\(?\[[^\]]*\]\((?:https?://|www\.)[^)]*\)\)?")
@@ -222,8 +243,11 @@ async def stream_pundit_response(
     stripper = _SourceStripper()
     inner = completion_stream(context)
     try:
-        async for delta in inner:
-            out = stripper.feed(delta)
+        async for chunk in inner:
+            if isinstance(chunk, CompletionSearchStarted):
+                yield PunditStreamEvent(event="status", data={"status": "searching"})
+                continue
+            out = stripper.feed(chunk.text)
             if out:
                 parts.append(out)
                 yield PunditStreamEvent(event="message_delta", data={"delta": out})
