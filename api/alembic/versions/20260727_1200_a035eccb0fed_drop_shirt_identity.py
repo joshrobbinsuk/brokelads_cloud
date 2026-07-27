@@ -2,8 +2,9 @@
 
 Username is now the only user-editable identity, so the JSON `shirt` column on
 `user` goes. Destructive by design — existing shirts are discarded, not
-preserved. Tiny-table column drop: instant, no lock concern. The frontend must
-already have stopped sending/reading the field before this lands.
+preserved. Tiny-table column drop: instant, no lock concern. Merge order: the
+bl-fe `feature/ladbrokes-reskin` PR (which stops sending/reading the field)
+must merge and deploy before this branch lands on `dev`.
 
 Revision ID: a035eccb0fed
 Revises: c58fc7d4594c
