@@ -1,8 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from ..models import FixtureResult
-from ..settings import SHIRT_COLOURS, SHIRT_PATTERNS
 
 
 class CreateBetRequest(BaseModel):
@@ -13,27 +12,6 @@ class CreateBetRequest(BaseModel):
 
 class SetUsernameRequest(BaseModel):
     username: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9_]+$")
-
-
-class SetShirtRequest(BaseModel):
-    background: str
-    body: str
-    pattern: str
-    pattern_colour: str
-
-    @field_validator("background", "body", "pattern_colour")
-    @classmethod
-    def validate_colour(cls, value: str) -> str:
-        if value not in SHIRT_COLOURS:
-            raise ValueError(f"Unknown colour: {value}")
-        return value
-
-    @field_validator("pattern")
-    @classmethod
-    def validate_pattern(cls, value: str) -> str:
-        if value not in SHIRT_PATTERNS:
-            raise ValueError(f"Unknown pattern: {value}")
-        return value
 
 
 class LeagueOut(BaseModel):
