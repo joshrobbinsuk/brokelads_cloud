@@ -56,7 +56,7 @@ Local seed (dev-only, mock data, drives the real ingestion + settlement path —
 cd api
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bl_dev ENVIRONMENT=dev \
   ADMIN_SESSION_SECRET=x .venv/bin/python -m src.dev.seed all
-# subcommands: fixtures | bets [--email <addr>] | resolve | streaks [--email <addr>] | all
+# subcommands: fixtures | bets [--email <addr>] | resolve | streaks [--email <addr>] | emulator-user | all
 ```
 
 `all` seeds an active seed league + 6 mock fixtures (with odds), places a spread of bets as a synthetic user, writes mock results, runs settlement, seeds a 3-week history of PAST settled cups (participation streak 3, profit streak 1), and prints per-bet outcomes + the entry balance before/after (proves WIN/LOSE/VOID). Idempotent (reserved `rapid_api_id` range + past-week cups skipped if present); refuses to run against a non-local DB. `streaks --email <addr>` gives an existing (e.g. Cognito) user the same past-cup history so their `/client/me` streaks render. Use it to give a local stack real data for smoke/verify.
@@ -88,7 +88,7 @@ The retired AWS App Runner + RDS stack is archived under `terraform/aws/` (refer
 
 ## Tests
 
-`src/tests/` runs against an in-memory SQLite engine (a fresh one per test, see `conftest.py`) — no Postgres needed. `factories.py` builds entities. `unit_tests/` covers model properties/validators; `integration_tests/` covers `create_bet` rules and settlement (`settle_bet`/`settle_voided_bet`/`run_settle_bets`). `test_seed.py` drives the dev seeder through the real fixture/odds/results **parse+write** path (schemas → `save_new_fixtures`/`update_fixtures`) plus the full bet→settlement loop, so the ingestion parse seam is now covered from `.model_validate` inward. Still uncovered: the FastAPI routes/auth dependencies, the admin UI, and the *live* RapidAPI HTTP layer (`external_calls.py` is unmocked — the seeder fakes the response, not the transport).
+`src/tests/` runs against an in-memory SQLite engine (a fresh one per test, see `conftest.py`) — no Postgres needed. `factories.py` builds entities. `unit_tests/` covers model properties/validators; `integration_tests/` covers `create_bet` rules and settlement (`settle_bet`/`settle_voided_bet`/`run_settle_bets`). `test_seed.py` drives the dev seeder through the real fixture/odds/results **parse+write** path (schemas → `save_new_fixtures`/`update_fixtures`) plus the full bet→settlement loop, so the ingestion parse seam is now covered from `.model_validate` inward. `src/tests/client/` covers the client routes through the FastAPI app, and the auth dependencies have unit tests (`test_firebase_auth.py`, `test_admin_auth.py`). Still uncovered: the admin UI and the *live* RapidAPI HTTP layer (`external_calls.py` is unmocked — the seeder fakes the response, not the transport).
 
 ## Known gaps
 - `ADMIN_EMAIL` is hardcoded (`settings.py`) — fine for a demo, not for reuse.
