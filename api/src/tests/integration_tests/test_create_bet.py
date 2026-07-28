@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from src.client.cup import current_balance, get_current_cup
-from src.client.queries import ClientSideError, create_bet
+from src.client.queries import ClientErrorCode, ClientSideError, create_bet
 from src.models import (
     Bet,
     BetOutcome,
@@ -96,7 +96,7 @@ def test_insufficient_funds_rejected(db: Session) -> None:
     user = make_user(db)
     fixture = make_fixture(db, status="NS", kick_off=_kick_off_this_week())
 
-    with pytest.raises(ClientSideError, match="Insufficient funds"):
+    with pytest.raises(ClientSideError, match="Insufficient funds") as exc:
         create_bet(
             db,
             user=user,
@@ -105,6 +105,7 @@ def test_insufficient_funds_rejected(db: Session) -> None:
             stake=Decimal("2000.00"),
         )
 
+    assert exc.value.code == ClientErrorCode.INSUFFICIENT_FUNDS
     assert db.query(Bet).count() == 0
 
 
@@ -113,7 +114,7 @@ def test_fixture_outside_current_window_rejected(db: Session) -> None:
     _, week_end = current_week_window(datetime.now(timezone.utc))
     fixture = make_fixture(db, status="NS", kick_off=week_end + timedelta(days=1))
 
-    with pytest.raises(ClientSideError, match="outside this week"):
+    with pytest.raises(ClientSideError, match="outside this week") as exc:
         create_bet(
             db,
             user=user,
@@ -122,6 +123,7 @@ def test_fixture_outside_current_window_rejected(db: Session) -> None:
             stake=Decimal("10.00"),
         )
 
+    assert exc.value.code == ClientErrorCode.FIXTURE_OUTSIDE_CUP_WEEK
     assert db.query(Bet).count() == 0
 
 
@@ -129,7 +131,7 @@ def test_started_fixture_rejected(db: Session) -> None:
     user = make_user(db)
     fixture = make_fixture(db, status="FT", home_goals=1, away_goals=0)
 
-    with pytest.raises(ClientSideError, match="already started"):
+    with pytest.raises(ClientSideError, match="already started") as exc:
         create_bet(
             db,
             user=user,
@@ -137,13 +139,15 @@ def test_started_fixture_rejected(db: Session) -> None:
             choice=FixtureResult.HOME,
             stake=Decimal("10.00"),
         )
+
+    assert exc.value.code == ClientErrorCode.FIXTURE_STARTED
 
 
 def test_fixture_without_odds_rejected(db: Session) -> None:
     user = make_user(db)
     fixture = make_fixture(db, status="NS", draw_odds=None)
 
-    with pytest.raises(ClientSideError, match="does not have odds"):
+    with pytest.raises(ClientSideError, match="does not have odds") as exc:
         create_bet(
             db,
             user=user,
@@ -152,11 +156,13 @@ def test_fixture_without_odds_rejected(db: Session) -> None:
             stake=Decimal("10.00"),
         )
 
+    assert exc.value.code == ClientErrorCode.FIXTURE_INVALID_OR_NO_ODDS
+
 
 def test_unknown_fixture_rejected(db: Session) -> None:
     user = make_user(db)
 
-    with pytest.raises(ClientSideError):
+    with pytest.raises(ClientSideError) as exc:
         create_bet(
             db,
             user=user,
@@ -164,3 +170,5 @@ def test_unknown_fixture_rejected(db: Session) -> None:
             choice=FixtureResult.HOME,
             stake=Decimal("10.00"),
         )
+
+    assert exc.value.code == ClientErrorCode.FIXTURE_INVALID_OR_NO_ODDS
