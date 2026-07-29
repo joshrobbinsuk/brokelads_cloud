@@ -162,7 +162,6 @@ def fetch_non_started_fixtures_with_odds(
                 or_(
                     Fixture.home_team.ilike(pattern),
                     Fixture.away_team.ilike(pattern),
-                    Fixture.venue.ilike(pattern),
                 )
             )
 
@@ -282,7 +281,6 @@ def get_user_bets(
                 or_(
                     Fixture.home_team.ilike(pattern),
                     Fixture.away_team.ilike(pattern),
-                    Fixture.venue.ilike(pattern),
                 )
             )
 
