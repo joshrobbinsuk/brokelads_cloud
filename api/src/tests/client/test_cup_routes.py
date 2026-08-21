@@ -14,10 +14,12 @@ from sqlalchemy.orm import Session
 from src.client.routes import router as client_router
 from src.client.utils.firebase import verify_token
 from src.database import get_db
-from src.models import Cup, CupStatus, User
+from src.models import BetOutcome, Cup, CupStatus, User
 from src.tests.factories import (
+    make_bet,
     make_cup,
     make_cup_entry,
+    make_fixture,
     make_user,
 )
 from src.utils.weeks import current_week_window
@@ -66,8 +68,24 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
         auth_uid="rival",
         username="rival",
     )
-    make_cup_entry(db, cup=cup, user=other, balance=Decimal("1200.00"))
+    rival_entry = make_cup_entry(db, cup=cup, user=other, balance=Decimal("1200.00"))
     make_cup_entry(db, cup=cup, user=user, balance=Decimal("900.00"))
+    fixture = make_fixture(db)
+    # Only open bets count towards potential — settled ones are already in balance.
+    make_bet(
+        db, user=other, fixture=fixture, cup_entry=rival_entry, returns=Decimal("30.00")
+    )
+    make_bet(
+        db, user=other, fixture=fixture, cup_entry=rival_entry, returns=Decimal("12.50")
+    )
+    make_bet(
+        db,
+        user=other,
+        fixture=fixture,
+        cup_entry=rival_entry,
+        returns=Decimal("500.00"),
+        outcome=BetOutcome.WON.value,
+    )
     db.commit()
 
     body = client.get("/client/cup/current").json()
@@ -77,6 +95,9 @@ def test_cup_current_shows_balance_rank_and_leaderboard(
     assert body["your_rank"] == 2
     assert [row["username"] for row in body["leaderboard"]] == ["rival", "me"]
     assert body["leaderboard"][0]["balance"] == "1200.00"
+    # potential = balance + returns of every still-open bet (best-case week end).
+    assert body["leaderboard"][0]["potential"] == "1242.50"
+    assert body["leaderboard"][1]["potential"] == "900.00"
     # Wire contract: every leaderboard row carries both streak fields as ints.
     assert body["leaderboard"][0]["participation_streak"] == 0
     assert body["leaderboard"][0]["profit_streak"] == 0

@@ -56,6 +56,18 @@ class TestGetFixtures:
         assert len(body["fixtures"]) == 1
         assert body["fixtures"][0]["league"]["id"] == league.id
 
+    def test_inactive_league_fixtures_are_hidden(
+        self, client: TestClient, db: Session
+    ) -> None:
+        active = make_league(db, rapid_api_id=39, name="EPL", active=True)
+        disabled = make_league(db, rapid_api_id=140, name="La Liga", active=False)
+        make_fixture(db, status="NS", league_id=active.id)
+        make_fixture(db, status="NS", league_id=disabled.id)
+
+        body = client.get("/client/fixture").json()
+
+        assert [f["league"]["id"] for f in body["fixtures"]] == [active.id]
+
     def test_league_id_filter(self, client: TestClient, db: Session) -> None:
         epl = make_league(db, rapid_api_id=39, name="EPL")
         laliga = make_league(db, rapid_api_id=140, name="La Liga")

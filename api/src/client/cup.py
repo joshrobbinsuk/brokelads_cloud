@@ -5,6 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import (
+    Bet,
+    BetOutcome,
     Cup,
     CupEntry,
     CupStatus,
@@ -120,8 +122,9 @@ def current_balance(db: Session, user: User, now: datetime) -> Decimal:
 def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
     """Leaderboard rows for a cup. A settled cup serves its frozen `final_rank`
     (deleted entries leave honest gaps); an open/closing cup ranks live by
-    balance. Each row carries the user's lifetime cup wins (aggregated in-query
-    to avoid an N+1)."""
+    balance. Each row carries the user's lifetime cup wins and their `potential`
+    — balance plus the returns of every still-open bet, i.e. the most they could
+    end the week with (both aggregated in-query to avoid an N+1)."""
     try:
         settled = cup.status == CupStatus.SETTLED.value
         wins = (
@@ -133,6 +136,15 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
             .group_by(CupEntry.user_id)
             .subquery()
         )
+        open_returns = (
+            select(
+                Bet.cup_entry_id.label("cup_entry_id"),
+                func.sum(Bet.returns).label("open_returns"),
+            )
+            .where(Bet.outcome == BetOutcome.UNDECIDED.value)
+            .group_by(Bet.cup_entry_id)
+            .subquery()
+        )
         stmt = (
             select(
                 CupEntry.user_id.label("user_id"),
@@ -140,9 +152,11 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 CupEntry.balance.label("balance"),
                 CupEntry.final_rank.label("final_rank"),
                 func.coalesce(wins.c.cups_won, 0).label("cups_won"),
+                func.coalesce(open_returns.c.open_returns, 0).label("open_returns"),
             )
             .join(User, User.id == CupEntry.user_id)
             .outerjoin(wins, wins.c.user_id == CupEntry.user_id)
+            .outerjoin(open_returns, open_returns.c.cup_entry_id == CupEntry.id)
             .where(CupEntry.cup_id == cup.id)
         )
         if settled:
@@ -167,6 +181,7 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 "user_id": row["user_id"],
                 "username": row["username"],
                 "balance": str(row["balance"]),
+                "potential": str(row["balance"] + row["open_returns"]),
                 "is_winner": row["final_rank"] == 1,
                 "cups_won": row["cups_won"],
                 "participation_streak": streaks[row["user_id"]]["participation_streak"],

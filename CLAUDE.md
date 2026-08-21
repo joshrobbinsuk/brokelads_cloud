@@ -19,7 +19,7 @@ Shared: `main.py` (app + router wiring), `models.py` (all SQLAlchemy models), `d
 
 Leagues are auto-populated (all ~1100, all `active=False`) by the daily `fetch_leagues` job; the admin ticks the handful to make active. Fixture ingestion (`fetch_fixtures`) loops over *active* leagues, topping each up to `N_FIXTURES_PER_LEAGUE` (throttled by `JobControl.min_interval_seconds` + the below-target count gate). `upsert_leagues` refreshes metadata only — it never touches `active`, so admin toggles survive in-place deploys.
 
-The leagues migration is **additive only — it does NOT wipe fixtures/bets** (a startup-gated `DELETE` against a live ingestion writer caused an App Runner deploy to hang on locks → health-check timeout → rollback). Instead, old fixtures keep `league_id IS NULL` and `save_new_fixtures` backfills it in place on the next ingestion of that league (one row per `rapid_api_id`, no duplicates); the client board query hides leagueless fixtures (`Fixture.league_id IS NOT NULL`) so they stay off the board until healed and age out otherwise.
+The leagues migration is **additive only — it does NOT wipe fixtures/bets** (a startup-gated `DELETE` against a live ingestion writer caused an App Runner deploy to hang on locks → health-check timeout → rollback). Instead, old fixtures keep `league_id IS NULL` and `save_new_fixtures` backfills it in place on the next ingestion of that league (one row per `rapid_api_id`, no duplicates); the client board query inner-joins `League` and requires `League.active`, so leagueless fixtures stay off the board until healed (and age out otherwise), and un-ticking a league in admin pulls its fixtures off the board immediately.
 
 Football status codes drive settlement — see the `*_STATUSES` lists in `settings.py`.
 
