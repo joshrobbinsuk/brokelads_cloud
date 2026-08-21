@@ -64,7 +64,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform/gcp/dev
-        run: terraform init -backend-config="bucket=526938691325-terraform-state"
+        run: terraform init -backend-config="bucket=joshrobbinsuk-tf-state"
 
       - name: Terraform Plan (Artifact Registry only)
         working-directory: terraform/gcp/dev
