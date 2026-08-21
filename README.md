@@ -21,7 +21,7 @@ flowchart TB
         SM["Secret Manager<br/>DATABASE_URL, API keys, session secret"]
         API["Cloud Run<br/>FastAPI, this repo<br/>min 0 / max 2 instances"]
         IDP["Identity Platform (Firebase Auth)<br/>email+password and Google IdP"]
-        SCHED["Cloud Scheduler<br/>every minute, 14:00-22:59 Europe/London"]
+        SCHED["Cloud Scheduler<br/>every minute, 12:00-22:59 Europe/London"]
     end
 
     NEON[("Neon Postgres<br/>serverless, autosuspends")]
@@ -174,10 +174,10 @@ constant in `settings.py`) **and** the `email_verified` claim to be true.
 | `close_cups` | settles a finished week: resolves what it can, force-voids bets whose fixture kicked off over `CUP_BET_MAX_AGE_HOURS` ago and never resolved, then crowns winners once no bets are still undecided |
 
 Each job self-gates on its `JobControl` row, so the cron cadence is only a floor. Cloud Scheduler
-fires every minute, but only between 14:00 and 22:59 Europe/London — the window brackets UK
-kick-offs (the earliest lunchtime games finish ~14:00-14:25, the latest 20:00/20:15 kick-offs by
-~22:10). The tick rate is what costs Neon compute-hours (each tick opens a session and Neon needs
-~5 idle minutes to autosuspend), so Neon stays awake for the whole window (~69 of the 100 free
+fires every minute, but only between 12:00 and 22:59 Europe/London — the window brackets UK
+kick-offs, from the earliest lunchtime games to the latest 20:00/20:15 kick-offs finishing by
+~22:10. The tick rate is what costs Neon compute-hours (each tick opens a session and Neon needs
+~5 idle minutes to autosuspend), so Neon stays awake for the whole window (~84 of the 100 free
 CU-h/month) and sleeps outside it; user requests still wake it on demand at any hour. Settlement
 lands within a minute or so of full-time.
 
@@ -303,7 +303,7 @@ referenced by ID and never created or destroyed by Terraform.
 
 Roughly **£0/month** for the GCP side. Cloud Run has `min_instance_count = 0` so it is billed per
 request, and `max_instance_count = 2` caps what a hammered public URL can spend. Neon is
-serverless and autosuspends, and the 14:00-22:59 ingestion window keeps its compute inside the
+serverless and autosuspends, and the 12:00-22:59 ingestion window keeps its compute inside the
 free tier's monthly allowance. Cloud Scheduler runs a single job, and Identity Platform sign-ins
 sit well inside the free tier. Third-party usage (RapidAPI, OpenAI) is billed separately.
 

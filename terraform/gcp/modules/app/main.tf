@@ -200,18 +200,19 @@ resource "google_cloud_scheduler_job" "run_jobs" {
   name    = "${local.name_prefix}-run-jobs"
   project = var.gcp_project_id
   region  = var.region
-  # Every minute, 14:00-22:59 Europe/London. The window brackets UK kick-offs:
-  # the earliest (Sun 12:00 EFL, Sat 12:30) finish ~13:55-14:25, the latest
-  # (20:00, occasionally 20:15) finish ~22:10. The tick rate, not the jobs, is
+  # Every minute, 12:00-22:59 Europe/London. The window brackets UK kick-offs:
+  # the earliest (Sun 12:00 EFL, Sat 12:30) through the latest (20:00,
+  # occasionally 20:15, finishing ~22:10). The tick rate, not the jobs, is
   # what costs Neon CU-hours: each tick opens a DB session to read JobControl
   # and Neon only autosuspends after ~5 idle minutes, so a per-minute tick keeps
-  # compute awake for the whole window — ~9 h/day, ~275 h/month at 0.25 CU
-  # ~= 69 of the 100 free CU-h/month (the free plan suspends compute for the
-  # rest of the month past 100, so that ceiling is hard). Jobs self-gate on
-  # min_interval_seconds, so most ticks are no-ops; the per-minute rate keeps
-  # ingested fixture status and settlement within a minute or so of the clock.
-  # User requests still wake Neon on demand outside the window.
-  schedule  = "* 14-22 * * *"
+  # compute awake for the whole window — ~11 h/day, ~337 h/month at 0.25 CU
+  # ~= 84 of the 100 free CU-h/month, leaving ~16 for on-demand wakeups (the
+  # free plan suspends compute for the rest of the month past 100, so that
+  # ceiling is hard). Jobs self-gate on min_interval_seconds, so most ticks are
+  # no-ops; the per-minute rate keeps ingested fixture status and settlement
+  # within a minute or so of the clock. User requests still wake Neon on demand
+  # outside the window.
+  schedule  = "* 12-22 * * *"
   time_zone = "Europe/London"
 
   http_target {
