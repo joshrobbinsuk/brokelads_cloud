@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Sequence
 
 from sqlalchemy.engine import RowMapping
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager
 from sqlalchemy import func, select, or_
 
 from ..models import (
@@ -141,10 +141,11 @@ def fetch_non_started_fixtures_with_odds(
         week_start, week_end = current_week_window(datetime.now(timezone.utc))
         query = (
             db.query(Fixture)
-            .options(joinedload(Fixture.league))
+            .join(League, League.id == Fixture.league_id)
+            .options(contains_eager(Fixture.league))
             .filter(
+                League.active.is_(True),
                 Fixture.status.in_(NOT_STARTED_STATUSES),
-                Fixture.league_id.isnot(None),
                 Fixture.home_odds.isnot(None),
                 Fixture.away_odds.isnot(None),
                 Fixture.draw_odds.isnot(None),
