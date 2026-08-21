@@ -21,7 +21,7 @@ flowchart TB
         SM["Secret Manager<br/>DATABASE_URL, API keys, session secret"]
         API["Cloud Run<br/>FastAPI, this repo<br/>min 0 / max 2 instances"]
         IDP["Identity Platform (Firebase Auth)<br/>email+password and Google IdP"]
-        SCHED["Cloud Scheduler<br/>every 20 min, 12:00-22:59 Europe/London"]
+        SCHED["Cloud Scheduler<br/>every minute, 12:00-22:59 Europe/London"]
     end
 
     NEON[("Neon Postgres<br/>serverless, autosuspends")]
@@ -174,11 +174,12 @@ constant in `settings.py`) **and** the `email_verified` claim to be true.
 | `close_cups` | settles a finished week: resolves what it can, force-voids bets whose fixture kicked off over `CUP_BET_MAX_AGE_HOURS` ago and never resolved, then crowns winners once no bets are still undecided |
 
 Each job self-gates on its `JobControl` row, so the cron cadence is only a floor. Cloud Scheduler
-fires every 20 minutes, and only between 12:00 and 22:59 Europe/London. The tick rate is what
-costs Neon compute-hours (each tick opens a session and Neon needs ~5 idle minutes to
-autosuspend), so a 20-minute tick keeps it awake about 30% of the window and the overnight gap
-keeps it asleep; user requests still wake it on demand at any hour. Settlement therefore lands
-within ~20 minutes of full-time.
+fires every minute, but only between 12:00 and 22:59 Europe/London — the window brackets UK
+kick-offs, from the earliest lunchtime games to the latest 20:00/20:15 kick-offs finishing by
+~22:10. The tick rate is what costs Neon compute-hours (each tick opens a session and Neon needs
+~5 idle minutes to autosuspend), so Neon stays awake for the whole window (~84 of the 100 free
+CU-h/month) and sleeps outside it; user requests still wake it on demand at any hour. Settlement
+lands within a minute or so of full-time.
 
 Leagues are auto-populated (all ~1100, all `active=False`) by `fetch_leagues`; an admin ticks the
 handful that should be active. Every job can also be triggered by hand from the `/admin`

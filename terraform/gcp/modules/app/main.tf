@@ -193,22 +193,26 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
   member   = "allUsers"
 }
 
-# Ingestion cron: every 20 minutes, POSTs to the ingestion endpoint with the
-# shared X-Cron-Auth-Key header (the app's own auth — the service itself is
-# public, so no OIDC identity token is required here).
+# Ingestion cron: every minute inside the football window, POSTs to the
+# ingestion endpoint with the shared X-Cron-Auth-Key header (the app's own auth —
+# the service itself is public, so no OIDC identity token is required here).
 resource "google_cloud_scheduler_job" "run_jobs" {
   name    = "${local.name_prefix}-run-jobs"
   project = var.gcp_project_id
   region  = var.region
-  # Every 20 minutes, 12:00-22:59 Europe/London. The tick rate, not the jobs,
-  # is what costs Neon CU-hours: each tick opens a DB session and Neon only
-  # autosuspends after ~5 idle minutes, so an every-minute tick kept compute
-  # awake the whole window (~82 of the 100 free CU-h/month). At :00/:20/:40 it
-  # is awake ~6 of every 20 min (~25 CU-h/month). Jobs still self-gate on
-  # min_interval_seconds, but anything under 20 min now just means "every
-  # tick" — settlement lands within ~20 min of full-time, fine at friends scale.
-  # User requests still wake Neon on demand outside the window.
-  schedule  = "*/20 12-22 * * *"
+  # Every minute, 12:00-22:59 Europe/London. The window brackets UK kick-offs:
+  # the earliest (Sun 12:00 EFL, Sat 12:30) through the latest (20:00,
+  # occasionally 20:15, finishing ~22:10). The tick rate, not the jobs, is
+  # what costs Neon CU-hours: each tick opens a DB session to read JobControl
+  # and Neon only autosuspends after ~5 idle minutes, so a per-minute tick keeps
+  # compute awake for the whole window — ~11 h/day, ~337 h/month at 0.25 CU
+  # ~= 84 of the 100 free CU-h/month, leaving ~16 for on-demand wakeups (the
+  # free plan suspends compute for the rest of the month past 100, so that
+  # ceiling is hard). Jobs self-gate on min_interval_seconds, so most ticks are
+  # no-ops; the per-minute rate keeps ingested fixture status and settlement
+  # within a minute or so of the clock. User requests still wake Neon on demand
+  # outside the window.
+  schedule  = "* 12-22 * * *"
   time_zone = "Europe/London"
 
   http_target {
