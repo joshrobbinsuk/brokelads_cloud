@@ -180,7 +180,11 @@ async def ask_pundit(
     fixtures = fetch_visible_fixture_slate_by_ids(db, request.fixture_ids)
 
     recent_bets = get_recent_user_bets_for_pundit(db, user.id)
-    context = build_pundit_context(user, fixtures, recent_bets, request.conversation)
+    cup = cup_queries.get_current_cup(db, datetime.now(timezone.utc))
+    leaderboard = cup_queries.leaderboard(db, cup) if cup is not None else []
+    context = build_pundit_context(
+        user, fixtures, recent_bets, leaderboard, request.conversation
+    )
 
     async def event_source() -> AsyncIterator[str]:
         async for event in stream_pundit_response(context):
