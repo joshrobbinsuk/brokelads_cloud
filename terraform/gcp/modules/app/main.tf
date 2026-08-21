@@ -193,21 +193,22 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
   member   = "allUsers"
 }
 
-# Ingestion cron: every minute, POSTs to the ingestion endpoint with the shared
-# X-Cron-Auth-Key header (the app's own auth — the service itself is public,
-# so no OIDC identity token is required here).
+# Ingestion cron: every 20 minutes, POSTs to the ingestion endpoint with the
+# shared X-Cron-Auth-Key header (the app's own auth — the service itself is
+# public, so no OIDC identity token is required here).
 resource "google_cloud_scheduler_job" "run_jobs" {
   name    = "${local.name_prefix}-run-jobs"
   project = var.gcp_project_id
   region  = var.region
-  # Every minute, but only 12:00-22:59 Europe/London: jobs self-gate on their
-  # own min_interval_seconds, and some are tuned to a 1-min cadence — the
-  # trigger is the floor within the window, so it must match the tightest job.
-  # The window keeps Neon autosuspending overnight so free-tier CU-h aren't
-  # blown (24/7 would be ~182 CU-h/month > the 100 free; 12:00-22:59 is ~82).
-  # User requests still wake Neon on demand outside the window — only
-  # ingestion pauses overnight.
-  schedule  = "* 12-22 * * *"
+  # Every 20 minutes, 12:00-22:59 Europe/London. The tick rate, not the jobs,
+  # is what costs Neon CU-hours: each tick opens a DB session and Neon only
+  # autosuspends after ~5 idle minutes, so an every-minute tick kept compute
+  # awake the whole window (~82 of the 100 free CU-h/month). At :00/:20/:40 it
+  # is awake ~6 of every 20 min (~25 CU-h/month). Jobs still self-gate on
+  # min_interval_seconds, but anything under 20 min now just means "every
+  # tick" — settlement lands within ~20 min of full-time, fine at friends scale.
+  # User requests still wake Neon on demand outside the window.
+  schedule  = "*/20 12-22 * * *"
   time_zone = "Europe/London"
 
   http_target {
