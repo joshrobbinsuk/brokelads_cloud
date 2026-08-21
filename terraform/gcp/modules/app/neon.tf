@@ -46,6 +46,12 @@ resource "neon_endpoint" "app" {
   branch_id      = neon_branch.this.id
   type           = "read_write"
   pooler_enabled = true
+
+  # Pin compute so the per-minute ingestion cron (see main.tf) costs a flat
+  # 0.25 CU-h per awake hour. Neon's default lets the endpoint autoscale
+  # (to 16 CU on paid plans), which would silently multiply that figure.
+  autoscaling_limit_min_cu = 0.25
+  autoscaling_limit_max_cu = 0.25
 }
 
 locals {
