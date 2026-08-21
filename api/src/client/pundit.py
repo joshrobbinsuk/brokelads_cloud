@@ -35,6 +35,7 @@ class PunditContext:
     username: str | None
     fixtures: list[dict[str, Any]]
     recent_bets: list[dict[str, Any]]
+    leaderboard: list[dict[str, Any]]
     conversation: list[dict[str, str]]
 
 
@@ -116,10 +117,29 @@ def _build_recent_bet_summaries(
     ]
 
 
+def _build_leaderboard_summaries(
+    user: User, leaderboard: Sequence[dict[str, object]]
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "rank": row["rank"],
+            "username": row["username"],
+            "balance": row["balance"],
+            "potential": row["potential"],
+            "cups_won": row["cups_won"],
+            "participation_streak": row["participation_streak"],
+            "profit_streak": row["profit_streak"],
+            "you": row["user_id"] == user.id,
+        }
+        for row in leaderboard
+    ]
+
+
 def build_pundit_context(
     user: User,
     fixtures: Sequence[Fixture],
     recent_bets: Sequence[RowMapping],
+    leaderboard: Sequence[dict[str, object]],
     conversation: Sequence[PunditConversationTurn],
 ) -> PunditContext:
     return PunditContext(
@@ -129,6 +149,7 @@ def build_pundit_context(
         username=user.username,
         fixtures=_build_fixture_summaries(fixtures),
         recent_bets=_build_recent_bet_summaries(recent_bets),
+        leaderboard=_build_leaderboard_summaries(user, leaderboard),
         conversation=[
             {"role": turn.role, "content": turn.content} for turn in conversation
         ],
@@ -140,7 +161,13 @@ def _build_responses_input(context: PunditContext) -> list[dict[str, str]]:
         "Here is the slate you are grounded in. Reason about these fixtures and the "
         "user's recent bets.\n\n"
         f"VISIBLE FIXTURES (JSON):\n{json.dumps(context.fixtures)}\n\n"
-        f"USER RECENT BETS (JSON):\n{json.dumps(context.recent_bets)}"
+        f"USER RECENT BETS (JSON):\n{json.dumps(context.recent_bets)}\n\n"
+        "THIS WEEK'S CUP STANDINGS (JSON, best pot first; 'you' marks the punter):\n"
+        + (
+            json.dumps(context.leaderboard)
+            if context.leaderboard
+            else "Nobody has had a punt yet this week, so there's no table."
+        )
     )
     if context.username:
         preamble += (

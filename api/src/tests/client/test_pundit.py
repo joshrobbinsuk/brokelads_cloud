@@ -34,7 +34,14 @@ from src.client.pundit import (
     is_unlimited,
     stream_pundit_response,
 )
-from src.tests.factories import make_bet, make_fixture, make_league, make_user
+from src.tests.factories import (
+    make_bet,
+    make_cup,
+    make_cup_entry,
+    make_fixture,
+    make_league,
+    make_user,
+)
 from src.utils.weeks import current_week_window
 
 
@@ -231,7 +238,7 @@ def test_recent_bet_summaries_limited_and_ordered(db: Session) -> None:
     assert len(rows) == 5  # PUNDIT_RECENT_BET_LIMIT default
 
     summaries = build_pundit_context(
-        user, [], rows, [PunditConversationTurn(role="user", content="hi")]
+        user, [], rows, [], [PunditConversationTurn(role="user", content="hi")]
     ).recent_bets
     placed = [summary["placed_at"] for summary in summaries]
     assert placed == sorted(placed, reverse=True)
@@ -259,7 +266,7 @@ def test_context_serializes_money_as_strings(db: Session) -> None:
     rows = get_recent_user_bets_for_pundit(db, user.id)
 
     context = build_pundit_context(
-        user, [fixture], rows, [PunditConversationTurn(role="user", content="hi")]
+        user, [fixture], rows, [], [PunditConversationTurn(role="user", content="hi")]
     )
 
     odds = context.fixtures[0]["odds"]
@@ -274,7 +281,7 @@ class TestPunditUsername:
         user = make_user(db, username="josh_r")
 
         context = build_pundit_context(
-            user, [], [], [PunditConversationTurn(role="user", content="hi")]
+            user, [], [], [], [PunditConversationTurn(role="user", content="hi")]
         )
 
         assert context.username == "josh_r"
@@ -282,7 +289,7 @@ class TestPunditUsername:
     def test_preamble_addresses_user_by_name_when_set(self, db: Session) -> None:
         user = make_user(db, username="josh_r")
         context = build_pundit_context(
-            user, [], [], [PunditConversationTurn(role="user", content="hi")]
+            user, [], [], [], [PunditConversationTurn(role="user", content="hi")]
         )
 
         preamble = _build_responses_input(context)[0]["content"]
@@ -292,12 +299,137 @@ class TestPunditUsername:
     def test_preamble_omits_name_line_when_username_null(self, db: Session) -> None:
         user = make_user(db)
         context = build_pundit_context(
-            user, [], [], [PunditConversationTurn(role="user", content="hi")]
+            user, [], [], [], [PunditConversationTurn(role="user", content="hi")]
         )
 
         preamble = _build_responses_input(context)[0]["content"]
 
         assert "goes by" not in preamble
+
+
+class TestPunditStandings:
+    def _rows(self, user: User) -> list[dict[str, object]]:
+        return [
+            {
+                "rank": 1,
+                "user_id": "rival-id",
+                "username": "rival",
+                "balance": "1200.00",
+                "potential": "1350.00",
+                "is_winner": False,
+                "cups_won": 2,
+                "participation_streak": 3,
+                "profit_streak": 1,
+            },
+            {
+                "rank": 2,
+                "user_id": user.id,
+                "username": user.username,
+                "balance": "900.00",
+                "potential": "900.00",
+                "is_winner": False,
+                "cups_won": 0,
+                "participation_streak": 0,
+                "profit_streak": 0,
+            },
+        ]
+
+    def test_context_flags_the_punters_own_row(self, db: Session) -> None:
+        user = make_user(db, username="josh_r")
+
+        context = build_pundit_context(
+            user,
+            [],
+            [],
+            self._rows(user),
+            [PunditConversationTurn(role="user", content="hi")],
+        )
+
+        assert [row["you"] for row in context.leaderboard] == [False, True]
+        assert context.leaderboard[0] == {
+            "rank": 1,
+            "username": "rival",
+            "balance": "1200.00",
+            "potential": "1350.00",
+            "cups_won": 2,
+            "participation_streak": 3,
+            "profit_streak": 1,
+            "you": False,
+        }
+
+    def test_preamble_carries_standings(self, db: Session) -> None:
+        user = make_user(db, username="josh_r")
+        context = build_pundit_context(
+            user,
+            [],
+            [],
+            self._rows(user),
+            [PunditConversationTurn(role="user", content="hi")],
+        )
+
+        preamble = _build_responses_input(context)[0]["content"]
+
+        assert "CUP STANDINGS" in preamble
+        assert '"potential": "1350.00"' in preamble
+
+    def test_preamble_says_so_when_no_table(self, db: Session) -> None:
+        user = make_user(db)
+        context = build_pundit_context(
+            user, [], [], [], [PunditConversationTurn(role="user", content="hi")]
+        )
+
+        preamble = _build_responses_input(context)[0]["content"]
+
+        assert "Nobody has had a punt yet this week" in preamble
+
+    def test_route_grounds_in_current_cup_table(
+        self,
+        client: TestClient,
+        app: FastAPI,
+        db: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        user = make_user(db, username="josh_r")
+        _override_user(app, user)
+        start, end = current_week_window(datetime.now(timezone.utc))
+        cup = make_cup(db, week_start=start, week_end=end)
+        make_cup_entry(db, cup=cup, user=user, balance=Decimal("950.00"))
+        fixture = make_fixture(db, status="NS", league_id=make_league(db).id)
+
+        grounded: dict[str, list[dict[str, object]]] = {}
+
+        async def capturing_stream(
+            context: PunditContext,
+        ) -> AsyncGenerator[CompletionChunk, None]:
+            grounded["leaderboard"] = context.leaderboard
+            yield CompletionTextDelta("ok")
+
+        def patched(context: PunditContext) -> object:
+            return stream_pundit_response(context, completion_stream=capturing_stream)
+
+        monkeypatch.setattr(routes_module, "stream_pundit_response", patched)
+
+        resp = client.post(
+            "/client/pundit",
+            json={
+                "fixture_ids": [fixture.id],
+                "conversation": [{"role": "user", "content": "Who's winning?"}],
+            },
+        )
+
+        assert resp.status_code == 200
+        assert grounded["leaderboard"] == [
+            {
+                "rank": 1,
+                "username": "josh_r",
+                "balance": "950.00",
+                "potential": "950.00",
+                "cups_won": 0,
+                "participation_streak": 0,
+                "profit_streak": 0,
+                "you": True,
+            }
+        ]
 
 
 class TestFetchVisibleFixtureSlateByIds:
@@ -390,6 +522,7 @@ def test_mid_stream_error_emits_error_then_done() -> None:
             username=None,
             fixtures=[],
             recent_bets=[],
+            leaderboard=[],
             conversation=[{"role": "user", "content": "hi"}],
         )
         names: list[str] = []
@@ -429,6 +562,7 @@ def test_disconnect_closes_completion_stream() -> None:
             username=None,
             fixtures=[],
             recent_bets=[],
+            leaderboard=[],
             conversation=[{"role": "user", "content": "hi"}],
         )
         events = stream_pundit_response(context, completion_stream=endless_stream)
@@ -469,6 +603,7 @@ def test_source_links_stripped_from_stream() -> None:
         username=None,
         fixtures=[],
         recent_bets=[],
+        leaderboard=[],
         conversation=[{"role": "user", "content": "hi"}],
     )
 
