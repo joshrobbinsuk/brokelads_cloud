@@ -10,6 +10,7 @@ from ..rapid_api.jobs import (
     run_fetch_fixture_updates,
     run_settle_bets,
     run_settle_voided_bets,
+    run_close_cups,
 )
 
 from ..database import (
@@ -155,6 +156,26 @@ class RapidAPIAdmin(BaseView):
                     "message": f"Settle voided bets job failed: {e}",
                     "success": False,
                 },
+            )
+        finally:
+            db.close()
+
+    @expose("/rapid-api/run/close-cups", methods=["GET"])
+    async def run_close_cups_view(self, request: Request) -> Response:
+        db = SessionLocal()
+        try:
+            run_close_cups(db)
+            return await self.templates.TemplateResponse(
+                request,
+                "rapid-api.html",
+                {"message": "Close cups job ran successfully.", "success": True},
+            )
+        except Exception as e:
+            logger.error(f"Close cups job failed: {e}", exc_info=True)
+            return await self.templates.TemplateResponse(
+                request,
+                "rapid-api.html",
+                {"message": f"Close cups job failed: {e}", "success": False},
             )
         finally:
             db.close()
