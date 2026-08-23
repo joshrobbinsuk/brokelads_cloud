@@ -21,7 +21,7 @@ flowchart TB
         SM["Secret Manager<br/>DATABASE_URL, API keys, session secret"]
         API["Cloud Run<br/>FastAPI, this repo<br/>min 0 / max 2 instances"]
         IDP["Identity Platform (Firebase Auth)<br/>email+password and Google IdP"]
-        SCHED["Cloud Scheduler<br/>every minute, 12:00-22:59 Europe/London"]
+        SCHED["Cloud Scheduler<br/>every minute 12:00-22:59 + Mon 00:05 Europe/London"]
     end
 
     NEON[("Neon Postgres<br/>serverless, autosuspends")]
@@ -179,7 +179,9 @@ kick-offs, from the earliest lunchtime games to the latest 20:00/20:15 kick-offs
 ~22:10. The tick rate is what costs Neon compute-hours (each tick opens a session and Neon needs
 ~5 idle minutes to autosuspend), so Neon stays awake for the whole window (~84 of the 100 free
 CU-h/month) and sleeps outside it; user requests still wake it on demand at any hour. Settlement
-lands within a minute or so of full-time.
+lands within a minute or so of full-time. A second Scheduler job fires once at **Monday 00:05**
+so `close_cups` crowns the week's champion minutes after the cup week ends rather than at the
+12:00 tick.
 
 Leagues are auto-populated (all ~1100, all `active=False`) by `fetch_leagues`; an admin ticks the
 handful that should be active. Every job can also be triggered by hand from the `/admin`
@@ -304,7 +306,7 @@ referenced by ID and never created or destroyed by Terraform.
 Roughly **£0/month** for the GCP side. Cloud Run has `min_instance_count = 0` so it is billed per
 request, and `max_instance_count = 2` caps what a hammered public URL can spend. Neon is
 serverless and autosuspends, and the 12:00-22:59 ingestion window keeps its compute inside the
-free tier's monthly allowance. Cloud Scheduler runs a single job, and Identity Platform sign-ins
+free tier's monthly allowance. Cloud Scheduler runs two jobs (inside its free allowance), and Identity Platform sign-ins
 sit well inside the free tier. Third-party usage (RapidAPI, OpenAI) is billed separately.
 
 ## Conventions

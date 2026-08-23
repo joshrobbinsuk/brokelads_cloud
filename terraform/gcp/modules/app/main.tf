@@ -226,3 +226,27 @@ resource "google_cloud_scheduler_job" "run_jobs" {
 
   depends_on = [google_project_service.apis]
 }
+
+# Crown the week's cup just after it ends. The cup week closes Monday 00:00
+# Europe/London, outside the ingestion window above, so without this tick the
+# champion wouldn't be crowned until the 12:00 tick. Sunday's results are
+# already settled by then; this tick just lets close_cups finish the cup.
+# One Neon wake a week — negligible.
+resource "google_cloud_scheduler_job" "crown_cup" {
+  name      = "${local.name_prefix}-crown-cup"
+  project   = var.gcp_project_id
+  region    = var.region
+  schedule  = "5 0 * * 1"
+  time_zone = "Europe/London"
+
+  http_target {
+    http_method = "POST"
+    uri         = "${google_cloud_run_v2_service.api.uri}/rapid-api/run-jobs"
+
+    headers = {
+      "X-Cron-Auth-Key" = random_password.cron_auth_key.result
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
