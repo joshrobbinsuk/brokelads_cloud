@@ -19,10 +19,19 @@ from src.models import (
     User,
     UserStatus,
 )
+from src.utils.weeks import current_week_window
 
 # fixture.rapid_api_id is now uniquely indexed, so each fixture needs a distinct
 # one; tests that care about the exact value pass it explicitly.
 _rapid_api_id_seq = itertools.count(1)
+
+
+def _kick_off_in_current_week() -> datetime:
+    """Default kick-off: an hour from now, clamped inside the current cup week so
+    fixtures built on a Sunday don't fall into next week's window."""
+    now = datetime.now(timezone.utc)
+    _, week_end = current_week_window(now)
+    return min(now + timedelta(hours=1), week_end - timedelta(minutes=1))
 
 
 def make_user(
@@ -89,7 +98,7 @@ def make_fixture(
         rapid_api_id=(
             rapid_api_id if rapid_api_id is not None else next(_rapid_api_id_seq)
         ),
-        kick_off=kick_off or datetime.now(timezone.utc) + timedelta(days=1),
+        kick_off=kick_off or _kick_off_in_current_week(),
         venue="Stadium",
         home_team="Home FC",
         home_team_logo="home.png",
