@@ -239,6 +239,14 @@ resource "google_cloud_scheduler_job" "crown_cup" {
   schedule  = "5 0 * * 1"
   time_zone = "Europe/London"
 
+  # One shot a week with no per-minute sibling to mop up, so transient failures
+  # (Neon cold start, a blip) must retry here. 2026-08-24: the first firing hit
+  # a stale pooled connection and the cup wasn't crowned until the 12:00 window.
+  retry_config {
+    retry_count          = 3
+    min_backoff_duration = "30s"
+  }
+
   http_target {
     http_method = "POST"
     uri         = "${google_cloud_run_v2_service.api.uri}/rapid-api/run-jobs"

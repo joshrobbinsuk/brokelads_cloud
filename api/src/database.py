@@ -10,7 +10,9 @@ from src.settings import DATABASE_URL
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set")
 
-engine = create_engine(DATABASE_URL)
+# Neon autosuspends and kills pooled connections; pre-ping reconnects instead
+# of handing the first request after a quiet spell a dead socket (500).
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
