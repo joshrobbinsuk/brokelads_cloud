@@ -56,6 +56,9 @@ def run_fetch_fixtures(db: Session) -> None:
 def run_fetch_odds(db: Session) -> None:
     fixtures = fetch_fixtures_missing_odds(db)
     rapid_id_to_id_map = {f.rapid_api_id: f.id for f in fixtures}
+    # End the read transaction before calling out: Neon drops a connection left
+    # idle in a transaction for minutes, and the write below then dies with it.
+    db.commit()
     new_odds = []
     for rapid_id in list(rapid_id_to_id_map.keys()):
         odds = fetch_odds_by_fixture(fixture_id=rapid_id)
@@ -68,6 +71,7 @@ def run_fetch_odds(db: Session) -> None:
 def run_fetch_fixture_updates(db: Session) -> None:
     fixtures = fetch_non_finished_fixtures(db)
     rapid_id_to_id_map = {f.rapid_api_id: f.id for f in fixtures}
+    db.commit()  # as in run_fetch_odds: no open transaction across the API call
     updates = fetch_fixture_updates(list(rapid_id_to_id_map.keys()))
 
     if not updates:

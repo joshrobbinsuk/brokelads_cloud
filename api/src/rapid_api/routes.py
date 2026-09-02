@@ -9,8 +9,11 @@ from .runner import run_jobs
 router = APIRouter(prefix="/rapid-api", tags=["rapid-api"])
 
 
+# Plain `def`, not `async`: the jobs are sync (requests + psycopg2). Run on the
+# event loop they froze every other request, /health included, for the whole
+# run; on the threadpool a slow upstream only slows the cron.
 @router.post("/run-jobs", status_code=status.HTTP_202_ACCEPTED)
-async def run(
+def run(
     x_cron_auth_key: str | None = Header(None),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:

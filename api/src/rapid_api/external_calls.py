@@ -17,12 +17,19 @@ HEADERS = {
     "x-rapidapi-key": RAPID_API_KEY,
     "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
 }
+# (connect, read) seconds. With no timeout, a blackholed first address for the
+# host cost the kernel's full 127s SYN-retry cycle on every call (2026-09-01).
+REQUEST_TIMEOUT = (5, 30)
+# One pooled connection per process so a run pays the TCP/TLS connect once,
+# not once per fixture.
+http_session = requests.Session()
+http_session.headers.update(HEADERS)
 
 
 def fetch_leagues() -> list[League]:
     try:
         url = f"{BASE_URL}leagues"
-        response = requests.get(url, headers=HEADERS)
+        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching leagues: {response.status_code} - {response.text}"
@@ -44,7 +51,7 @@ def fetch_leagues() -> list[League]:
 def fetch_fixtures_by_league(league_id: int, next: int = 20) -> list[Fixture]:
     try:
         url = f"{BASE_URL}fixtures?league={league_id}&next={next}"
-        response = requests.get(url, headers=HEADERS)
+        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching fixtures: {response.status_code} - {response.text}"
@@ -63,7 +70,7 @@ def fetch_fixtures_by_league(league_id: int, next: int = 20) -> list[Fixture]:
 def fetch_odds_by_fixture(fixture_id: int) -> Odds | None:
     try:
         url = f"{BASE_URL}odds?fixture={fixture_id}&bet=1"
-        response = requests.get(url, headers=HEADERS)
+        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching odds for fixture {fixture_id}: {response.status_code} - {response.text}"
@@ -81,7 +88,7 @@ def fetch_fixture_updates(fixture_ids: List[int]) -> list[UpdateFixture]:
             return []
         ids_param = "-".join(map(str, fixture_ids))
         url = f"{BASE_URL}fixtures?ids={ids_param}"
-        response = requests.get(url, headers=HEADERS)
+        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching fixture updates for ids {ids_param}: {response.status_code} - {response.text}"
