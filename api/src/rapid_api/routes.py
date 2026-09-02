@@ -1,3 +1,5 @@
+import threading
+
 from fastapi import Header, APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,10 @@ from ..database import get_db
 from .runner import run_jobs
 
 router = APIRouter(prefix="/rapid-api", tags=["rapid-api"])
+
+# JobControl.is_due is a clock gate, not an in-progress gate: a tick landing
+# mid-run would start the same jobs again alongside it. One run at a time.
+_run_lock = threading.Lock()
 
 
 # Plain `def`, not `async`: the jobs are sync (requests + psycopg2). Run on the
@@ -24,6 +30,12 @@ def run(
             detail="Unauthorized",
         )
 
-    run_jobs(db)
+    if not _run_lock.acquire(blocking=False):
+        logger.info("run-jobs already in progress; skipping this tick")
+        return {"message": "Run already in progress; skipped"}
+    try:
+        run_jobs(db)
+    finally:
+        _run_lock.release()
 
     return {"message": "Job accepted for processing"}

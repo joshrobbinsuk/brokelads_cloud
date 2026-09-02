@@ -26,7 +26,7 @@ Football status codes drive settlement — see the `*_STATUSES` lists in `settin
 ## Endpoints
 
 - `GET /client/fixture` (optional `search`, `league_id`), `GET /client/league` (active leagues only), `POST /client/bet`, `GET /client/bet`, `GET /client/me` — all require a Firebase `idToken` Bearer (`verify_token` / `get_current_user`). `/client/me` exposes the Firebase uid as `auth_uid` (was `cognito_uuid`). `/client/fixture` returns a `FixtureResponse` schema nesting `league: {id, display_name, logo} | null`; money fields (odds) serialize as **strings**.
-- `POST /rapid-api/run-jobs` — requires header `X-Cron-Auth-Key: $CRON_AUTH_KEY`; runs due jobs from `JOB_REGISTRY` synchronously on the threadpool (a plain `def` — sync `requests`/psycopg2 inside an `async def` froze the whole instance, `/health` included, for the length of a run). API-Football calls carry a bounded timeout and share one `requests.Session`.
+- `POST /rapid-api/run-jobs` — requires header `X-Cron-Auth-Key: $CRON_AUTH_KEY`; runs due jobs from `JOB_REGISTRY` synchronously on the threadpool (a plain `def` — sync `requests`/psycopg2 inside an `async def` froze the whole instance, `/health` included, for the length of a run). API-Football calls carry a bounded timeout and share one `requests.Session`. One run at a time: a tick that lands mid-run returns 202 `skipped` (`JobControl.is_due` is a clock gate, not an in-progress gate).
 - `GET /health`, `/admin` (Google OIDC), `GET /auth/callback` (OIDC callback). Admin access requires the token's email to match `ADMIN_EMAIL` **and** the `email_verified` claim to be true.
 
 ## Conventions

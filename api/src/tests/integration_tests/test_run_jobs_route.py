@@ -1,5 +1,6 @@
 """The cron endpoint runs synchronously on the threadpool so a slow upstream
-can't block the event loop for every other request."""
+can't block the event loop for every other request, and one run at a time:
+a tick that lands mid-run is skipped, not queued behind it."""
 
 import pytest
 from fastapi import FastAPI
@@ -33,6 +34,26 @@ def test_runs_due_jobs(
 
     assert response.status_code == 202
     assert len(calls) == 1
+    assert not routes_module._run_lock.locked()
+
+
+def test_tick_during_a_run_is_skipped(
+    cron_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def must_not_run(db: Session) -> None:
+        raise AssertionError("a tick during a run must not start another")
+
+    monkeypatch.setattr(routes_module, "run_jobs", must_not_run)
+    routes_module._run_lock.acquire()
+    try:
+        response = cron_client.post(
+            "/rapid-api/run-jobs", headers={"X-Cron-Auth-Key": CRON_KEY}
+        )
+    finally:
+        routes_module._run_lock.release()
+
+    assert response.status_code == 202
+    assert response.json()["message"] == "Run already in progress; skipped"
 
 
 def test_wrong_key_is_rejected(
