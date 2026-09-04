@@ -35,7 +35,7 @@ from .queries import (
     UsernameTakenError,
 )
 from . import cup as cup_queries
-from .streaks import compute_streaks
+from .streaks import compute_streaks, profit_streak_record
 from .schemas import (
     CreateBetRequest,
     CupSummary,
@@ -278,6 +278,28 @@ async def list_cups_view(
         )
 
 
+# Plain `def`: the DB work is sync, so it runs on the threadpool rather than
+# blocking the event loop the way the `async def` routes above do.
+@router.get("/cups/all-time")
+def get_all_time(
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """The record books: biggest settled-week pots and the longest profit
+    streak with everyone who holds it."""
+    try:
+        return {
+            "best_weeks": cup_queries.best_weeks(db),
+            "profit_streak_record": profit_streak_record(db),
+        }
+    except Exception:
+        logger.exception("Error building the all-time view")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while building the all-time view",
+        )
+
+
 @router.get("/me")
 async def get_me(
     db: Session = Depends(get_db),
@@ -294,6 +316,7 @@ async def get_me(
             "username": user.username,
             "balance": str(cup_queries.current_balance(db, user, now)),
             "cups_won": cup_queries.cups_won(db, user),
+            "best_week": cup_queries.best_week(db, user),
             "participation_streak": streaks["participation_streak"],
             "profit_streak": streaks["profit_streak"],
             "created_at": user.created_at,
