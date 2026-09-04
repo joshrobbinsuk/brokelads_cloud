@@ -214,3 +214,78 @@ def list_cups(db: Session) -> list[Cup]:
     except Exception:
         logger.exception("Error listing cups")
         raise
+
+
+def best_weeks(db: Session, limit: int = 5) -> list[dict[str, object]]:
+    """All-time biggest single-week pots across settled cups, biggest first.
+    Raw entries rather than one per user, so a punter on a run holds several
+    places. Competition-ranked like the cup itself (equal pots share a rank)
+    and cut at rank `limit`, so a tie is never split. Open/closing cups are
+    excluded: only frozen pots count."""
+    try:
+        stmt = (
+            select(
+                CupEntry.user_id.label("user_id"),
+                User.username.label("username"),
+                CupEntry.balance.label("balance"),
+                Cup.id.label("cup_id"),
+                Cup.week_start.label("week_start"),
+            )
+            .join(User, User.id == CupEntry.user_id)
+            .join(Cup, Cup.id == CupEntry.cup_id)
+            .where(Cup.status == CupStatus.SETTLED.value)
+            .order_by(
+                CupEntry.balance.desc(),
+                Cup.week_start.desc(),
+                CupEntry.user_id.asc(),
+            )
+            .limit(100)
+        )
+        rows = db.execute(stmt).mappings().all()
+        ranked: list[dict[str, object]] = []
+        rank = 0
+        for index, row in enumerate(rows):
+            if index == 0 or row["balance"] < rows[index - 1]["balance"]:
+                rank = index + 1
+            if rank > limit:
+                break
+            ranked.append(
+                {
+                    "rank": rank,
+                    "user_id": row["user_id"],
+                    "username": row["username"],
+                    "balance": str(row["balance"]),
+                    "cup_id": row["cup_id"],
+                    "week_start": row["week_start"],
+                }
+            )
+        return ranked
+    except Exception:
+        logger.exception("Error building best weeks")
+        raise
+
+
+def best_week(db: Session, user: User) -> dict[str, object] | None:
+    """The user's biggest settled-week pot and when it was, or None before
+    their first settled cup."""
+    try:
+        stmt = (
+            select(
+                CupEntry.balance.label("balance"),
+                Cup.week_start.label("week_start"),
+            )
+            .join(Cup, Cup.id == CupEntry.cup_id)
+            .where(
+                CupEntry.user_id == user.id,
+                Cup.status == CupStatus.SETTLED.value,
+            )
+            .order_by(CupEntry.balance.desc(), Cup.week_start.desc())
+            .limit(1)
+        )
+        row = db.execute(stmt).mappings().first()
+        if row is None:
+            return None
+        return {"balance": str(row["balance"]), "week_start": row["week_start"]}
+    except Exception:
+        logger.exception("Error finding best week")
+        raise
