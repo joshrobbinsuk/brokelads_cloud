@@ -22,7 +22,8 @@ import firebase_admin
 from firebase_admin import auth
 from sqlalchemy.orm import Session
 
-from ..client.cup import get_or_create_current_cup, get_or_create_entry
+from ..client.cup import get_or_create_entry
+from ..cups import get_or_create_current_cup
 from ..client.queries import create_bet
 from ..client.streaks import compute_streaks
 from ..models import (

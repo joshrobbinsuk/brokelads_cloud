@@ -9,7 +9,8 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from src.client.cup import get_or_create_current_cup, get_or_create_entry
+from src.client.cup import get_or_create_entry
+from src.cups import get_or_create_current_cup
 from src.dev import seed
 from src.models import Bet, BetOutcome, Fixture
 from src.settings import CUP_STARTING_STAKE

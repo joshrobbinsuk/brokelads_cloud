@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..cups import get_current_cup
 from ..models import (
     Bet,
     BetOutcome,
@@ -18,40 +19,7 @@ from ..models import (
 )
 from ..settings import CUP_STARTING_STAKE
 from ..utils.logging import logger
-from ..utils.weeks import current_week_window
 from .streaks import compute_streaks_bulk
-
-
-def get_or_create_current_cup(db: Session, now: datetime) -> Cup:
-    """Upsert this week's cup (write path). Stores the resolved UTC bounds once."""
-    try:
-        week_start, week_end = current_week_window(now)
-        cup = db.query(Cup).filter(Cup.week_start == week_start).first()
-        if cup is None:
-            cup = Cup(
-                week_start=week_start,
-                week_end=week_end,
-                status=CupStatus.OPEN.value,
-            )
-            db.add(cup)
-            db.commit()
-            db.refresh(cup)
-            logger.info(f"Created cup for week starting {week_start.isoformat()}")
-        return cup
-    except Exception:
-        db.rollback()
-        logger.exception("Error getting or creating current cup")
-        raise
-
-
-def get_current_cup(db: Session, now: datetime) -> Cup | None:
-    """Lookup only (read path) — never writes."""
-    try:
-        week_start, _ = current_week_window(now)
-        return db.query(Cup).filter(Cup.week_start == week_start).first()
-    except Exception:
-        logger.exception("Error fetching current cup")
-        raise
 
 
 def get_cup_by_id(db: Session, cup_id: str) -> Cup | None:
@@ -122,9 +90,11 @@ def current_balance(db: Session, user: User, now: datetime) -> Decimal:
 def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
     """Leaderboard rows for a cup. A settled cup serves its frozen `final_rank`
     (deleted entries leave honest gaps); an open/closing cup ranks live by
-    balance. Each row carries the user's lifetime cup wins and their `potential`
-    — balance plus the returns of every still-open bet, i.e. the most they could
-    end the week with (both aggregated in-query to avoid an N+1)."""
+    balance. Each row carries the user's `potential` — balance plus the returns
+    of every still-open bet, i.e. the most they could end the week with
+    (aggregated in-query to avoid an N+1) — and their cup wins and streaks as
+    they stood that week, so a past week's table reads the same next month as it
+    did on the day."""
     try:
         settled = cup.status == CupStatus.SETTLED.value
         wins = (
@@ -132,7 +102,8 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 CupEntry.user_id.label("user_id"),
                 func.count(CupEntry.id).label("cups_won"),
             )
-            .where(CupEntry.final_rank == 1)
+            .join(Cup, Cup.id == CupEntry.cup_id)
+            .where(CupEntry.final_rank == 1, Cup.week_start <= cup.week_start)
             .group_by(CupEntry.user_id)
             .subquery()
         )
@@ -174,7 +145,9 @@ def leaderboard(db: Session, cup: Cup) -> list[dict[str, object]]:
                 CupEntry.user_id.asc(),
             )
         rows = db.execute(stmt).mappings().all()
-        streaks = compute_streaks_bulk(db, [row["user_id"] for row in rows])
+        streaks = compute_streaks_bulk(
+            db, [row["user_id"] for row in rows], as_of=cup.week_start
+        )
         return [
             {
                 "rank": row["final_rank"] if settled else index + 1,

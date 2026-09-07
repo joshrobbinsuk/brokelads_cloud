@@ -7,6 +7,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from src.client.cup import cups_won
+from src.cups import get_current_cup
 from src.models import BetOutcome, CupStatus, FixtureResult
 from src.rapid_api.internal_queries import fetch_cup_backstop_bets
 from src.rapid_api.jobs import run_close_cups
@@ -165,3 +166,49 @@ def test_won_bet_settles_cup_by_fixture_outcome(db: Session) -> None:
     assert entry.balance == Decimal("1025.00")  # 990 + 35
     assert cup.status == CupStatus.SETTLED.value
     assert entry.final_rank == 1
+
+
+def test_monday_rollover_opens_the_new_cup_and_closes_the_old_one(
+    db: Session,
+) -> None:
+    """The Monday tick in one pass: this week's cup exists, last week's is done."""
+    start, end = _past_week()
+    old = make_cup(db, week_start=start, week_end=end, status=CupStatus.OPEN.value)
+    user = make_user(db)
+    entry = make_cup_entry(db, cup=old, user=user, balance=Decimal("990.00"))
+    fixture = make_fixture(
+        db,
+        status="FT",
+        home_goals=2,
+        away_goals=1,
+        kick_off=datetime.now(timezone.utc) - timedelta(hours=2),
+    )
+    make_bet(
+        db,
+        user=user,
+        fixture=fixture,
+        cup_entry=entry,
+        choice=FixtureResult.HOME,
+        returns=Decimal("35.00"),
+    )
+    assert get_current_cup(db, datetime.now(timezone.utc)) is None
+
+    run_close_cups(db)
+
+    db.refresh(old)
+    new = get_current_cup(db, datetime.now(timezone.utc))
+    assert new is not None and new.id != old.id
+    assert new.status == CupStatus.OPEN.value
+    assert old.status == CupStatus.SETTLED.value
+    assert cups_won(db, user) == 1
+
+
+def test_rollover_opens_this_weeks_cup_with_nothing_to_close(db: Session) -> None:
+    """The Monday tick is what makes the week's cup exist — no bet needed."""
+    assert get_current_cup(db, datetime.now(timezone.utc)) is None
+
+    run_close_cups(db)
+
+    cup = get_current_cup(db, datetime.now(timezone.utc))
+    assert cup is not None
+    assert cup.status == CupStatus.OPEN.value

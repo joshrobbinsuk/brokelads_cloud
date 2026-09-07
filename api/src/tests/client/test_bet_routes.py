@@ -1,6 +1,6 @@
-"""Wire contract for POST /client/bet rejections: a domain rejection serialises
-`detail` as {"code", "message"} so the frontend branches on the code, never the
-prose."""
+"""Wire contract for /client/bet: a domain rejection serialises `detail` as
+{"code", "message"} so the frontend branches on the code, never the prose; and
+the GET scopes to the current cup week."""
 
 from datetime import datetime, timedelta, timezone
 from typing import Iterator
@@ -15,7 +15,13 @@ from src.client.routes import router as client_router
 from src.client.utils.firebase import verify_token
 from src.database import get_db
 from src.models import User
-from src.tests.factories import make_fixture, make_user
+from src.tests.factories import (
+    make_bet,
+    make_cup,
+    make_cup_entry,
+    make_fixture,
+    make_user,
+)
 from src.utils.weeks import current_week_window
 
 
@@ -77,3 +83,28 @@ def test_started_fixture_serialises_its_own_code(
         "code": ClientErrorCode.FIXTURE_STARTED.value,
         "message": "Fixture has already started",
     }
+
+
+def test_get_bets_without_a_current_cup_returns_nothing(
+    client: TestClient, db: Session, user: User
+) -> None:
+    """The cup row is only created when the week's first bet is placed, so until
+    then "this week" is empty rather than every bet the user has ever made."""
+    make_bet(db, user=user, fixture=make_fixture(db))
+
+    resp = client.get("/client/bet")
+
+    assert resp.status_code == 200
+    assert resp.json()["bets"] == []
+
+
+def test_get_bets_for_an_explicit_cup_returns_that_week(
+    client: TestClient, db: Session, user: User
+) -> None:
+    cup = make_cup(db)
+    entry = make_cup_entry(db, cup=cup, user=user)
+    bet = make_bet(db, user=user, fixture=make_fixture(db), cup_entry=entry)
+
+    resp = client.get("/client/bet", params={"cup_id": cup.id})
+
+    assert [row["id"] for row in resp.json()["bets"]] == [bet.id]

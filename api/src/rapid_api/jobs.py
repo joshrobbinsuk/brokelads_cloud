@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from ..cups import get_or_create_current_cup
 from ..utils.logging import logger
 from ..settings import N_FIXTURES_PER_LEAGUE
 
@@ -105,6 +106,10 @@ def run_settle_voided_bets(db: Session) -> None:
 
 def run_close_cups(db: Session) -> None:
     now = datetime.now(timezone.utc)
+    # Opens this week's cup on the Monday rollover tick, so every read path has
+    # one from 00:05 rather than from whenever the week's first bet lands.
+    get_or_create_current_cup(db, now)
+
     cups = fetch_cups_to_close(db, now)
     if not cups:
         return
