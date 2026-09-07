@@ -9,7 +9,9 @@ Three feature packages, each a deep module with a thin surface:
 - `rapid_api/` — data ingestion + bet settlement jobs. `routes.py` exposes one cron-authed endpoint; `runner.py` orchestrates, `jobs.py` holds the `JOB_REGISTRY`, `external_calls.py` hits API-Football, `schemas/` parses its responses.
 - `admin/` — SQLAdmin UI behind Google OIDC (`auth.py`; admin gate = token email equals `ADMIN_EMAIL` AND `email_verified`), model views (`admin_views.py`), manual job triggers (`rapid_api_admin.py`).
 
-Shared: `main.py` (app + router wiring), `models.py` (all SQLAlchemy models), `database.py` (`BaseModel`, engine, `get_db`), `settings.py` (env + domain constants), `utils/logging.py` (loguru).
+Shared: `main.py` (app + router wiring), `models.py` (all SQLAlchemy models), `database.py` (`BaseModel`, engine, `get_db`), `settings.py` (env + domain constants), `cups.py` (which cup is this week's, and opening it), `utils/logging.py` (loguru).
+
+`cups.py` is the one cup fact both feature packages need, so neither has to import the other: `rapid_api`'s `close_cups` opens the week's cup on the Monday rollover tick, and `client` reads it on every request (falling back to opening it if that tick never landed). Settling a cup stays a job step (`rapid_api/internal_queries.py`); rendering one stays an API concern (`client/cup.py`).
 
 `dev/` is a **walled-off dev-only** package (the `python -m src.dev.seed` local seeder). It is NEVER imported by the running app — no wiring in `main.py`, no `if ENVIRONMENT == "dev"` in any production path. It only *calls into* the real functions from the outside, guarded by an internal prod-DB seatbelt. Keep it that way (a `src.dev` import from any non-test module is a bug).
 

@@ -27,7 +27,8 @@ from ..settings import (
     PUNDIT_RECENT_BET_LIMIT,
 )
 from ..utils.weeks import current_week_window
-from .cup import get_or_create_current_cup, get_or_create_entry
+from ..cups import get_or_create_current_cup
+from .cup import get_or_create_entry
 
 
 class ClientErrorCode(str, Enum):

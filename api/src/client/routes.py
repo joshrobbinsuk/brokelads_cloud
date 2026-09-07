@@ -34,6 +34,7 @@ from .queries import (
     ClientSideError,
     UsernameTakenError,
 )
+from ..cups import get_current_cup
 from . import cup as cup_queries
 from .streaks import compute_streaks, profit_streak_record
 from .schemas import (
@@ -150,8 +151,10 @@ async def get_my_bets(
                 detail=f"Invalid bet outcome: {outcome}",
             )
     if cup_id is None:
-        current = cup_queries.get_current_cup(db, datetime.now(timezone.utc))
-        cup_id = current.id if current is not None else None
+        current = get_current_cup(db, datetime.now(timezone.utc))
+        if current is None:
+            return {"bets": []}
+        cup_id = current.id
     bets = get_user_bets(db, user.id, outcome, search, limit, cup_id)
     return {"bets": jsonable_encoder(bets)}
 
@@ -180,7 +183,7 @@ async def ask_pundit(
     fixtures = fetch_visible_fixture_slate_by_ids(db, request.fixture_ids)
 
     recent_bets = get_recent_user_bets_for_pundit(db, user.id)
-    cup = cup_queries.get_current_cup(db, datetime.now(timezone.utc))
+    cup = get_current_cup(db, datetime.now(timezone.utc))
     leaderboard = cup_queries.leaderboard(db, cup) if cup is not None else []
     context = build_pundit_context(
         user, fixtures, recent_bets, leaderboard, request.conversation
@@ -204,7 +207,7 @@ async def get_current_cup_view(
 ) -> dict[str, Any]:
     try:
         now = datetime.now(timezone.utc)
-        cup = cup_queries.get_current_cup(db, now)
+        cup = get_current_cup(db, now)
         balance = str(cup_queries.current_balance(db, user, now))
         if cup is None:
             return {

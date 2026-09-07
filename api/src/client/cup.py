@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..cups import get_current_cup
 from ..models import (
     Bet,
     BetOutcome,
@@ -18,40 +19,7 @@ from ..models import (
 )
 from ..settings import CUP_STARTING_STAKE
 from ..utils.logging import logger
-from ..utils.weeks import current_week_window
 from .streaks import compute_streaks_bulk
-
-
-def get_or_create_current_cup(db: Session, now: datetime) -> Cup:
-    """Upsert this week's cup (write path). Stores the resolved UTC bounds once."""
-    try:
-        week_start, week_end = current_week_window(now)
-        cup = db.query(Cup).filter(Cup.week_start == week_start).first()
-        if cup is None:
-            cup = Cup(
-                week_start=week_start,
-                week_end=week_end,
-                status=CupStatus.OPEN.value,
-            )
-            db.add(cup)
-            db.commit()
-            db.refresh(cup)
-            logger.info(f"Created cup for week starting {week_start.isoformat()}")
-        return cup
-    except Exception:
-        db.rollback()
-        logger.exception("Error getting or creating current cup")
-        raise
-
-
-def get_current_cup(db: Session, now: datetime) -> Cup | None:
-    """Lookup only (read path) — never writes."""
-    try:
-        week_start, _ = current_week_window(now)
-        return db.query(Cup).filter(Cup.week_start == week_start).first()
-    except Exception:
-        logger.exception("Error fetching current cup")
-        raise
 
 
 def get_cup_by_id(db: Session, cup_id: str) -> Cup | None:
