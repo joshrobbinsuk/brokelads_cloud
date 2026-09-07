@@ -2,10 +2,11 @@
 
 A "week" is the London civil cup week (cups freeze their UTC bounds at creation).
 A streak runs over consecutive calendar weeks in which the user has a SETTLED cup
-entry, anchored at the most recent settled cup week overall — so a settled week
-the user missed (or a week with no cup at all) between now and their last entry
+entry, anchored at the most recent settled cup week — so a settled week the user
+missed (or a week with no cup at all) between the anchor and their last entry
 breaks the streak. The current OPEN week is ignored (it can only extend a streak
-once it settles).
+once it settles). The anchor is the latest settled week overall, or, for a past
+cup's leaderboard, that cup's own week (`as_of`) so the table stays put.
 
 No storage, no caching, no events dependency: this reads the domain tables. A
 new streak kind is another `_walk` with its own predicate.
@@ -82,17 +83,25 @@ def _walk(
     return count
 
 
-def compute_streaks_bulk(db: Session, user_ids: list[str]) -> dict[str, dict[str, int]]:
-    """Streak counts per user (one query set for the whole batch — no N+1)."""
+def compute_streaks_bulk(
+    db: Session, user_ids: list[str], as_of: datetime | None = None
+) -> dict[str, dict[str, int]]:
+    """Streak counts per user (one query set for the whole batch — no N+1).
+
+    `as_of` anchors the walk at the latest settled week no later than that week
+    start, so a past cup's table keeps the numbers it had then instead of moving
+    every time a newer week settles. Omitted, the anchor is the latest settled
+    week overall — the user's streak right now."""
     try:
         if not user_ids:
             return {}
 
-        anchor = db.execute(
-            select(func.max(Cup.week_start)).where(
-                Cup.status == CupStatus.SETTLED.value
-            )
-        ).scalar()
+        anchor_stmt = select(func.max(Cup.week_start)).where(
+            Cup.status == CupStatus.SETTLED.value
+        )
+        if as_of is not None:
+            anchor_stmt = anchor_stmt.where(Cup.week_start <= as_of)
+        anchor = db.execute(anchor_stmt).scalar()
         if anchor is None:
             return {
                 user_id: {"participation_streak": 0, "profit_streak": 0}

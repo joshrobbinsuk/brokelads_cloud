@@ -238,10 +238,20 @@ def test_best_weeks_equal_pots_share_a_rank_and_a_tie_is_never_split(
 
 
 def _settled_profit_week(
-    db: Session, user: User, week_start: datetime, balance: str
-) -> None:
-    cup = make_cup(db, week_start=week_start, status=CupStatus.SETTLED.value)
-    entry = make_cup_entry(db, cup=cup, user=user, balance=Decimal(balance))
+    db: Session,
+    user: User,
+    week_start: datetime,
+    balance: str,
+    *,
+    final_rank: int | None = None,
+) -> Cup:
+    # week_start is unique, so a second player in the same week joins that cup.
+    cup = db.query(Cup).filter(Cup.week_start == week_start).first() or make_cup(
+        db, week_start=week_start, status=CupStatus.SETTLED.value
+    )
+    entry = make_cup_entry(
+        db, cup=cup, user=user, balance=Decimal(balance), final_rank=final_rank
+    )
     db.add(
         LedgerEntry(
             cup_entry_id=entry.id,
@@ -252,6 +262,7 @@ def _settled_profit_week(
         )
     )
     db.commit()
+    return cup
 
 
 def test_all_time_profit_streak_record_on_the_wire(
@@ -273,3 +284,42 @@ def test_all_time_profit_streak_record_on_the_wire(
         (user.id, True)
     ]
     assert record["holders"][0]["ended_week_start"].startswith("2026-01-12")
+
+
+def test_a_past_weeks_table_freezes_streaks_to_that_week(
+    client: TestClient, db: Session, user: User
+) -> None:
+    """A settled table is a record of that week: a later week settling must not
+    move its numbers, and skipping a later week must not wipe them."""
+    quitter = make_user(db, email="quitter@test.com", auth_uid="quitter")
+    first = datetime(2026, 1, 5, tzinfo=timezone.utc)
+    second = datetime(2026, 1, 12, tzinfo=timezone.utc)
+    first_cup = _settled_profit_week(db, user, first, "1100.00")
+    _settled_profit_week(db, quitter, first, "1100.00")
+    _settled_profit_week(db, user, second, "1100.00")
+
+    rows = {
+        row["user_id"]: row
+        for row in client.get(f"/client/cup/{first_cup.id}").json()["leaderboard"]
+    }
+
+    # Not 2 — the second week hadn't happened yet.
+    assert rows[user.id]["participation_streak"] == 1
+    assert rows[user.id]["profit_streak"] == 1
+    # Not 0 — sitting out the second week can't retro-erase the first.
+    assert rows[quitter.id]["participation_streak"] == 1
+
+
+def test_a_past_weeks_table_freezes_cups_won_to_that_week(
+    client: TestClient, db: Session, user: User
+) -> None:
+    first = datetime(2026, 1, 5, tzinfo=timezone.utc)
+    second = datetime(2026, 1, 12, tzinfo=timezone.utc)
+    first_cup = _settled_profit_week(db, user, first, "1100.00", final_rank=1)
+    _settled_profit_week(db, user, second, "1100.00", final_rank=1)
+
+    board = client.get(f"/client/cup/{first_cup.id}").json()["leaderboard"]
+
+    assert board[0]["cups_won"] == 1
+    # The player's own lifetime count keeps counting; only the table freezes.
+    assert client.get("/client/me").json()["cups_won"] == 2
