@@ -5,8 +5,11 @@ terraform {
       version = ">= 6.0, < 7.0"
     }
     neon = {
-      source  = "kislerdm/neon"
-      version = ">= 0.13, < 1.0"
+      source = "kislerdm/neon"
+      # 0.14 removed neon_endpoint.pooler_enabled and exposes the pooled host as
+      # a separate computed attribute, so DATABASE_URL would quietly switch to
+      # the direct endpoint. Patch releases only until that migration is done.
+      version = "~> 0.13.0"
     }
     vercel = {
       source  = "vercel/vercel"

@@ -11,8 +11,9 @@ terraform {
       version = ">= 6.0, < 7.0"
     }
     neon = {
-      source  = "kislerdm/neon"
-      version = ">= 0.13, < 1.0"
+      source = "kislerdm/neon"
+      # See the dev stack: 0.14 removed neon_endpoint.pooler_enabled.
+      version = "~> 0.13.0"
     }
     vercel = {
       source  = "vercel/vercel"
