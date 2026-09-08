@@ -169,6 +169,24 @@ resource "google_cloud_run_v2_service" "api" {
           }
         }
       }
+
+      # /health is a plain `def` with no I/O, so it answers from the threadpool.
+      # It therefore fails if the event loop is blocked OR the threadpool is
+      # exhausted — both of the ways an instance wedges. Without this probe the
+      # 2026-09-01 wedge ran 12 hours until a human redeployed; with it, ~90s.
+      # Failure is a SIGKILL, not a drain, and in-flight requests get a 503 —
+      # but only ever on an instance that was already wedged. A kill mid-cron-run
+      # is safe: every job re-selects its work from row state, so a truncated run
+      # resumes on the next tick. CPU is always allocated while probes run, so a
+      # throttled idle instance cannot fail one spuriously.
+      liveness_probe {
+        http_get {
+          path = "/health"
+        }
+        period_seconds    = 30
+        timeout_seconds   = 5
+        failure_threshold = 3
+      }
     }
   }
 
