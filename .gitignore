@@ -27,7 +27,10 @@ override.tf.json
 terraform.rc
 
 # Lock files
-.terraform.lock.hcl
+# .terraform.lock.hcl is deliberately NOT ignored: CI runs `terraform init`
+# fresh, so without it the providers float to whatever is newest. On 2026-09-08
+# that resolved kislerdm/neon 0.17.0, which removed an argument we use, and the
+# deploy failed at plan.
 
 # Lambda zip files generated during build
 **/lambda_function.zip
