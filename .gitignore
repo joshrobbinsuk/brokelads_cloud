@@ -26,6 +26,11 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# The audit docs live on the local-only `audit` branch — this repo is public and
+# they itemise live weaknesses. `git worktree add .audit audit` puts them here as
+# ordinary files while keeping them off `dev`.
+.audit/
+
 # Lock files
 # .terraform.lock.hcl is deliberately NOT ignored: CI runs `terraform init`
 # fresh, so without it the providers float to whatever is newest. On 2026-09-08
