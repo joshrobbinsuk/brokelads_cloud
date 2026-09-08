@@ -1,5 +1,7 @@
-import requests
+import time
 from typing import List
+
+import requests
 
 from .schemas.fixture import (
     RapidApiFixturesResponse,
@@ -27,11 +29,33 @@ REQUEST_TIMEOUT = (5, 10)
 http_session = requests.Session()
 http_session.headers.update(HEADERS)
 
+# The Pro plan allows 5 requests/second (and 300/minute). Nothing here respected
+# that: run_fetch_odds loops over up to 50 fixtures on a warm connection, which
+# outruns 5/s whenever the API answers quickly, and the rejections come back as
+# HTTP 200 with an errors body — so odds were being dropped while the daily
+# quota sat almost untouched. Pace at 4/s for headroom; that is also 240/min,
+# inside the other ceiling.
+_MIN_INTERVAL_SECONDS = 0.25
+# Seconds-since-boot, so 0.0 is safely "long ago" and the first call never waits.
+_last_request_at = 0.0
+
+
+def _get(url: str) -> requests.Response:
+    """Every outbound call goes through here so the pacing can't be forgotten at
+    a new call site. No lock: run_jobs and run_job serialise every job run in
+    the process, and jobs are the only caller."""
+    global _last_request_at
+    wait = _last_request_at + _MIN_INTERVAL_SECONDS - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_at = time.monotonic()
+    return http_session.get(url, timeout=REQUEST_TIMEOUT)
+
 
 def fetch_leagues() -> list[League]:
     try:
         url = f"{BASE_URL}leagues"
-        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
+        response = _get(url)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching leagues: {response.status_code} - {response.text}"
@@ -53,7 +77,7 @@ def fetch_leagues() -> list[League]:
 def fetch_fixtures_by_league(league_id: int, next: int = 20) -> list[Fixture]:
     try:
         url = f"{BASE_URL}fixtures?league={league_id}&next={next}"
-        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
+        response = _get(url)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching fixtures: {response.status_code} - {response.text}"
@@ -72,7 +96,7 @@ def fetch_fixtures_by_league(league_id: int, next: int = 20) -> list[Fixture]:
 def fetch_odds_by_fixture(fixture_id: int) -> Odds | None:
     try:
         url = f"{BASE_URL}odds?fixture={fixture_id}&bet=1"
-        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
+        response = _get(url)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching odds for fixture {fixture_id}: {response.status_code} - {response.text}"
@@ -90,7 +114,7 @@ def fetch_fixture_updates(fixture_ids: List[int]) -> list[UpdateFixture]:
             return []
         ids_param = "-".join(map(str, fixture_ids))
         url = f"{BASE_URL}fixtures?ids={ids_param}"
-        response = http_session.get(url, timeout=REQUEST_TIMEOUT)
+        response = _get(url)
         if response.status_code != 200 or response.json()["errors"]:
             raise Exception(
                 f"Error fetching fixture updates for ids {ids_param}: {response.status_code} - {response.text}"
