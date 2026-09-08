@@ -69,15 +69,13 @@ resource "google_monitoring_alert_policy" "api_uptime" {
     }
   }
 
+  # No notification_rate_limit: the API rejects it on anything but a log-based
+  # policy ("only log-based alert policies may specify a notification rate
+  # limit") and these are condition_threshold policies. The de-flapping is done
+  # by the condition itself — under half the checks failing, sustained for 300s
+  # over a 600s window — so the rate limit was only ever belt and braces.
   alert_strategy {
     auto_close = "1800s"
-
-    # Matched to auto_close deliberately: this limit is per *policy*, not per
-    # incident, so a longer window could swallow the opening notification of a
-    # second, unrelated outage. One email per 30 minutes of sustained failure.
-    notification_rate_limit {
-      period = "1800s"
-    }
   }
 
   notification_channels = [google_monitoring_notification_channel.alert_email.name]
@@ -137,10 +135,6 @@ resource "google_monitoring_alert_policy" "cron_failures" {
 
   alert_strategy {
     auto_close = "1800s"
-
-    notification_rate_limit {
-      period = "1800s"
-    }
   }
 
   notification_channels = [google_monitoring_notification_channel.alert_email.name]
