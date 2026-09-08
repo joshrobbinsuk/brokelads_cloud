@@ -98,16 +98,21 @@ def _check_seatbelt() -> None:
 
 
 def _kick_off_for(offset: int) -> datetime:
-    """A deterministic kick-off inside the current civil week so create_bet's
-    week-window check passes. Spread across the week by offset."""
-    week_start, week_end = current_week_window(datetime.now(timezone.utc))
-    # 1..6 days into the week keeps every fixture strictly inside the window.
-    kick_off = week_start.replace(
-        hour=12, minute=0, second=0, microsecond=0
-    ) + timedelta(hours=offset * 24)
-    if kick_off >= week_end:
-        raise SystemExit("Seed kick-off fell outside the current week window.")
-    return kick_off
+    """A deterministic kick-off inside the current civil week and still ahead of
+    now, so create_bet accepts a bet on it.
+
+    Spread proportionally across whatever is left of the week rather than by a
+    fixed number of days, for two reasons: create_bet rejects a fixture whose
+    kick_off has passed, so a calendar-week spread is unbettable from Tuesday
+    on; and fixed steps run out of room on a Sunday evening. This way seeding
+    works at any hour of any day by construction.
+
+    (The old version also mis-dated every fixture: week_start is Monday 00:00
+    London expressed in UTC, which under BST is the previous calendar day, so
+    .replace(hour=12) on it landed everything ~23h early.)"""
+    now = datetime.now(timezone.utc)
+    _, week_end = current_week_window(now)
+    return now + (week_end - now) * offset / (len(SEED_PLANS) + 1)
 
 
 def _fixture_payload(plan: SeedFixturePlan) -> FixtureSchema:

@@ -14,6 +14,7 @@ from src.cups import get_or_create_current_cup
 from src.dev import seed
 from src.models import Bet, BetOutcome, Fixture
 from src.settings import CUP_STARTING_STAKE
+from src.utils.weeks import current_week_window
 
 
 def test_fixtures_inserts_six_with_odds(db: Session) -> None:
@@ -86,3 +87,19 @@ def test_resolve_refunds_the_voided_stake(db: Session) -> None:
     db.expire_all()
     voided = db.query(Bet).filter(Bet.outcome == BetOutcome.VOIDED.value).one()
     assert voided.stake == Decimal("10.00")
+
+
+def test_every_seed_kick_off_is_bettable_whenever_the_seeder_runs() -> None:
+    """The seeded fixtures have to be inside the current week *and* still ahead
+    of now, or create_bet rejects the bets the seeder then places. This used to
+    hold only by luck: kick-offs were pinned to fixed days of the week, so they
+    went stale as the week wore on, and week_start.replace(hour=12) mis-dated
+    them by ~23h under BST. Asserted for every plan so it can't regress into a
+    failure that only shows up on certain days."""
+    now = datetime.now(timezone.utc)
+    week_start, week_end = current_week_window(now)
+
+    for plan in seed.SEED_PLANS:
+        kick_off = seed._kick_off_for(plan.offset)
+        assert now < kick_off < week_end, plan
+        assert week_start <= kick_off

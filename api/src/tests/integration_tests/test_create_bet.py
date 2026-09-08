@@ -172,3 +172,67 @@ def test_unknown_fixture_rejected(db: Session) -> None:
         )
 
     assert exc.value.code == ClientErrorCode.FIXTURE_INVALID_OR_NO_ODDS
+
+
+def test_a_fixture_that_has_kicked_off_is_rejected_however_stale_its_status(
+    db: Session,
+) -> None:
+    """The status column is only as fresh as the last ingestion run; on
+    2026-09-01 it was 12 hours behind and matches already played still read NS.
+    kick_off is written once and never goes stale, so it is the honest gate."""
+    user = make_user(db)
+    start, _ = current_week_window(datetime.now(timezone.utc))
+    fixture = make_fixture(
+        db,
+        status="NS",
+        home_odds=Decimal("2.50"),
+        kick_off=max(start, datetime.now(timezone.utc) - timedelta(hours=2)),
+    )
+
+    with pytest.raises(ClientSideError) as exc:
+        create_bet(
+            db=db,
+            user=user,
+            fixture_id=fixture.id,
+            choice=FixtureResult.HOME,
+            stake=Decimal("10.00"),
+        )
+
+    assert exc.value.code == ClientErrorCode.FIXTURE_STARTED
+    assert db.query(Bet).count() == 0
+
+
+def test_the_balance_is_locked_for_the_whole_check_and_debit(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: the lock used to live in get_or_create_entry, which commits
+    when it creates the entry — so on a user's first bet of the week it was
+    released before create_bet checked the balance, and two concurrent bets
+    silently overwrote each other's debit (reproduced against Postgres:
+    two bets of 40 and 30 left a balance debited by only 40).
+
+    SQLite ignores FOR UPDATE, so this asserts the lock is *requested* rather
+    than the race outcome. That is the one thing this suite can hold onto."""
+    user = make_user(db)
+    fixture = make_fixture(
+        db, status="NS", home_odds=Decimal("2.00"), kick_off=_kick_off_this_week()
+    )
+    locked: list[bool] = []
+    real_refresh = Session.refresh
+
+    def spy(self: Session, instance: object, *args: object, **kwargs: object) -> None:
+        if isinstance(instance, CupEntry):
+            locked.append(kwargs.get("with_for_update") is True)
+        real_refresh(self, instance, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Session, "refresh", spy)
+
+    create_bet(
+        db=db,
+        user=user,
+        fixture_id=fixture.id,
+        choice=FixtureResult.HOME,
+        stake=Decimal("10.00"),
+    )
+
+    assert True in locked, "create_bet must re-read the entry FOR UPDATE"
