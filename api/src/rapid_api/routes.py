@@ -1,5 +1,3 @@
-import threading
-
 from fastapi import Header, APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -10,10 +8,6 @@ from .runner import run_jobs
 
 router = APIRouter(prefix="/rapid-api", tags=["rapid-api"])
 
-# JobControl.is_due is a clock gate, not an in-progress gate: a tick landing
-# mid-run would start the same jobs again alongside it. One run at a time.
-_run_lock = threading.Lock()
-
 
 # Plain `def`, not `async`: the jobs are sync (requests + psycopg2). Run on the
 # event loop they froze every other request, /health included, for the whole
@@ -22,7 +16,7 @@ _run_lock = threading.Lock()
 def run(
     x_cron_auth_key: str | None = Header(None),
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> dict[str, object]:
     if x_cron_auth_key != CRON_AUTH_KEY or not CRON_AUTH_KEY:
         logger.warning("Unauthorized cron job attempt")
         raise HTTPException(
@@ -30,12 +24,12 @@ def run(
             detail="Unauthorized",
         )
 
-    if not _run_lock.acquire(blocking=False):
+    if not run_jobs(db):
         logger.info("run-jobs already in progress; skipping this tick")
-        return {"message": "Run already in progress; skipped"}
-    try:
-        run_jobs(db)
-    finally:
-        _run_lock.release()
+        # 202 with a flag rather than a failure: with runs bounded, an overlap
+        # is abnormal, and a log-based metric on this is the only zombie
+        # detector there is — Scheduler counts a non-2xx tick as a retryable
+        # failure, which is not what a deliberate skip means.
+        return {"message": "Run already in progress; skipped", "skipped": True}
 
-    return {"message": "Job accepted for processing"}
+    return {"message": "Job accepted for processing", "skipped": False}
