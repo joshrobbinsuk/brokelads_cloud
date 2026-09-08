@@ -315,7 +315,16 @@ def create_bet(
                 "Invalid fixture or fixture does not have odds",
             )
 
-        if fixture.status not in NOT_STARTED_STATUSES:
+        # Both gates, because they fail differently: `status` is whatever the
+        # last ingestion run wrote, and on 2026-09-01 that was 12 hours stale,
+        # so played matches still read NS. `kick_off` is written once and can't
+        # go stale. A cosmetically stale board is fine; a stale bet is a result.
+        # (SQLite returns naive datetimes where Postgres is aware — same
+        # accommodation as streaks._week_key.)
+        kick_off = fixture.kick_off
+        if kick_off.tzinfo is None:
+            kick_off = kick_off.replace(tzinfo=timezone.utc)
+        if fixture.status not in NOT_STARTED_STATUSES or kick_off <= now:
             raise ClientSideError(
                 ClientErrorCode.FIXTURE_STARTED, "Fixture has already started"
             )
@@ -328,7 +337,13 @@ def create_bet(
             )
 
         entry = get_or_create_entry(db, cup, user)
-        # Not row-locked: accepted for friends-scale v1 (see CLAUDE.md Known gaps).
+        # Lock the row and re-read the balance for this transaction. Routes run
+        # on the threadpool, so two of the user's bets can reach the check and
+        # the debit below at once, and `debit` is a Python-side read-modify-write
+        # — the later commit would silently overwrite the earlier one. Taken here
+        # rather than inside get_or_create_entry because that commits when it
+        # creates the entry, which would drop the lock before we ever used it.
+        db.refresh(entry, with_for_update=True)
         if entry.balance < stake:
             raise ClientSideError(
                 ClientErrorCode.INSUFFICIENT_FUNDS, "Insufficient funds"

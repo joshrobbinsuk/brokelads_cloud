@@ -12,7 +12,19 @@ if not DATABASE_URL:
 
 # Neon autosuspends and kills pooled connections; pre-ping reconnects instead
 # of handing the first request after a quiet spell a dead socket (500).
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# Routes run on FastAPI's 40-thread pool, so the connection pool — not the event
+# loop — is the limiter: 20 is ample for this app and leaves two instances well
+# inside Neon's ceiling at 0.25 CU. connect_timeout matters because pre-ping
+# makes reconnects routine, and an unreachable address otherwise costs the
+# kernel's full SYN-retry cycle (~127s, as on 2026-09-01) with no error at all.
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=10,
+    pool_timeout=10,
+    connect_args={"connect_timeout": 5},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

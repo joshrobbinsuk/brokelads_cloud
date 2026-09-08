@@ -76,6 +76,10 @@ def current_balance(db: Session, user: User, now: datetime) -> Decimal:
         cup = get_current_cup(db, now)
         if cup is None:
             return CUP_STARTING_STAKE
+        # Locked for the caller's transaction: create_bet reads this balance,
+        # checks it covers the stake, then debits it. On the threadpool two of
+        # the user's requests reach that sequence at once and the later write
+        # would otherwise overwrite the earlier debit. (SQLite ignores it.)
         entry = (
             db.query(CupEntry)
             .filter(CupEntry.cup_id == cup.id, CupEntry.user_id == user.id)

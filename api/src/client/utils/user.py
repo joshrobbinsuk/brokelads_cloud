@@ -12,7 +12,7 @@ from ..queries import (
 )
 
 
-async def get_current_user(
+def get_current_user(
     db: Session = Depends(get_db),
     token_user: dict[str, Any] = Depends(verify_token),
 ) -> User:

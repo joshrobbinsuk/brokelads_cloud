@@ -19,7 +19,9 @@ HEADERS = {
 }
 # (connect, read) seconds. With no timeout, a blackholed first address for the
 # host cost the kernel's full 127s SYN-retry cycle on every call (2026-09-01).
-REQUEST_TIMEOUT = (5, 30)
+# The read half is 10 rather than 30 so a stalled upstream can't eat a job's
+# whole budget on three calls; the API normally answers in well under a second.
+REQUEST_TIMEOUT = (5, 10)
 # One pooled connection per process so a run pays the TCP/TLS connect once,
 # not once per fixture.
 http_session = requests.Session()

@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -31,6 +32,11 @@ from .internal_queries import (
     mark_cup_closing,
 )
 
+# How long one job may keep starting outbound calls. Whatever is left is picked
+# up by the next tick: both loops below re-select their work from the database,
+# so a truncated pass costs a few minutes of freshness and nothing else.
+JOB_BUDGET_SECONDS = 45
+
 
 def run_fetch_leagues(db: Session) -> None:
     upsert_leagues(db, fetch_leagues())
@@ -42,7 +48,12 @@ def run_fetch_fixtures(db: Session) -> None:
         logger.warning("No active leagues found. Skipping fixture fetch.")
         return
 
+    deadline = time.monotonic() + JOB_BUDGET_SECONDS
     for league in leagues:
+        if time.monotonic() >= deadline:
+            logger.warning("Fixture fetch out of time; remaining leagues next tick.")
+            break
+
         count = count_non_started_fixtures_by_league(db, league.id)
         if count >= N_FIXTURES_PER_LEAGUE:
             logger.info(f"League {league.name} at target ({count}). Skipping fetch.")
@@ -61,7 +72,12 @@ def run_fetch_odds(db: Session) -> None:
     # idle in a transaction for minutes, and the write below then dies with it.
     db.commit()
     new_odds = []
+    deadline = time.monotonic() + JOB_BUDGET_SECONDS
     for rapid_id in list(rapid_id_to_id_map.keys()):
+        if time.monotonic() >= deadline:
+            logger.warning("Odds fetch out of time; remaining fixtures next tick.")
+            break
+
         odds = fetch_odds_by_fixture(fixture_id=rapid_id)
         if odds:
             odds.bl_id = rapid_id_to_id_map.get(rapid_id)

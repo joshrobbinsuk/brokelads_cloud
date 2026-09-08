@@ -1,8 +1,10 @@
 import os
 
-# database.py raises at import time if DATABASE_URL is unset. Tests run against
-# their own in-memory SQLite engine (see the `db` fixture), so any value works.
-os.environ.setdefault("DATABASE_URL", "sqlite://")
+# database.py builds the app engine at import time and raises if DATABASE_URL is
+# unset. Tests never connect it — the `db` fixture below has its own in-memory
+# SQLite engine and every route overrides get_db — but the URL must be
+# Postgres-shaped, because the pool sizing there is invalid for SQLite's pool.
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://bl:bl@localhost/bl")
 # main.py raises at import time if these are unset (the CORS tests import the
 # real app to exercise the actual CORSMiddleware wiring).
 os.environ.setdefault("ADMIN_SESSION_SECRET", "test-secret")

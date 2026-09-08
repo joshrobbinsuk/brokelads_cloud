@@ -14,12 +14,30 @@ resource "neon_project" "this" {
   # and the free tier rejects it with a 400. Keep the create-time value; bump
   # only alongside a project recreate or a provider fix.
   history_retention_seconds = 3600
+
+  # There is one hour of PITR (above) and no backups, and the deploy applies
+  # with -auto-approve on every push to dev. A ForceNew change — a renamed
+  # prefix, a provider upgrade, a moved module without `moved {}` — would
+  # silently destroy every user, bet and cup. Fail the apply loudly instead;
+  # an intentional recreate becomes a two-step edit.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "neon_branch" "this" {
   project_id = neon_project.this.id
   parent_id  = neon_project.this.default_branch_id
   name       = var.env
+
+  # There is one hour of PITR (above) and no backups, and the deploy applies
+  # with -auto-approve on every push to dev. A ForceNew change — a renamed
+  # prefix, a provider upgrade, a moved module without `moved {}` — would
+  # silently destroy every user, bet and cup. Fail the apply loudly instead;
+  # an intentional recreate becomes a two-step edit.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "neon_role" "app" {
@@ -32,6 +50,15 @@ resource "neon_role" "app" {
   # create in parallel — force the endpoint first. (database owner_name -> role,
   # so the database follows transitively.)
   depends_on = [neon_endpoint.app]
+
+  # There is one hour of PITR (above) and no backups, and the deploy applies
+  # with -auto-approve on every push to dev. A ForceNew change — a renamed
+  # prefix, a provider upgrade, a moved module without `moved {}` — would
+  # silently destroy every user, bet and cup. Fail the apply loudly instead;
+  # an intentional recreate becomes a two-step edit.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "neon_database" "app" {
@@ -39,6 +66,15 @@ resource "neon_database" "app" {
   branch_id  = neon_branch.this.id
   name       = "bl"
   owner_name = neon_role.app.name
+
+  # There is one hour of PITR (above) and no backups, and the deploy applies
+  # with -auto-approve on every push to dev. A ForceNew change — a renamed
+  # prefix, a provider upgrade, a moved module without `moved {}` — would
+  # silently destroy every user, bet and cup. Fail the apply loudly instead;
+  # an intentional recreate becomes a two-step edit.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "neon_endpoint" "app" {

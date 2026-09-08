@@ -70,10 +70,11 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
 PUNDIT_DAILY_LIMIT = int(os.getenv("PUNDIT_DAILY_LIMIT", "10"))
 
-# Comma-separated list of emails exempt from the daily pundit cap.
-PUNDIT_UNLIMITED_EMAILS = os.getenv(
-    "PUNDIT_UNLIMITED_EMAILS", "joshrobbinsukdev+test@gmail.com"
-)
+# Comma-separated list of emails exempt from the daily pundit cap. No default:
+# the repo is public and sign-up is open, so a named address here is an
+# invitation to register it and stream OpenAI on our account. Set it in
+# Terraform if the exemption is wanted.
+PUNDIT_UNLIMITED_EMAILS = os.getenv("PUNDIT_UNLIMITED_EMAILS", "")
 
 
 # all_statuses = [

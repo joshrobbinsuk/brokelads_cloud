@@ -45,7 +45,12 @@ from .schemas import (
     SetUsernameRequest,
 )
 from .pundit_schemas import AskPunditRequest
-from .pundit import build_pundit_context, is_unlimited, stream_pundit_response
+from .pundit import (
+    PunditContext,
+    build_pundit_context,
+    is_unlimited,
+    stream_pundit_response,
+)
 from ..settings import PUNDIT_DAILY_LIMIT
 from ..utils.weeks import london_today
 
@@ -53,7 +58,7 @@ router = APIRouter(prefix="/client", tags=["client"])
 
 
 @router.get("/fixture")
-async def get_fixtures(
+def get_fixtures(
     search: str | None = None,
     league_id: str | None = None,
     db: Session = Depends(get_db),
@@ -76,7 +81,7 @@ async def get_fixtures(
 
 
 @router.get("/league")
-async def get_leagues(
+def get_leagues(
     db: Session = Depends(get_db),
     _claims: dict[str, Any] = Depends(verify_token),
 ) -> dict[str, Any]:
@@ -97,7 +102,7 @@ async def get_leagues(
 
 
 @router.post("/bet", status_code=http_status.HTTP_201_CREATED)
-async def place_bet(
+def place_bet(
     bet_request: CreateBetRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -133,7 +138,7 @@ async def place_bet(
 
 
 @router.get("/bet")
-async def get_my_bets(
+def get_my_bets(
     search: str | None = None,
     outcome: str | None = None,
     cup_id: str | None = None,
@@ -159,12 +164,14 @@ async def get_my_bets(
     return {"bets": jsonable_encoder(bets)}
 
 
-@router.post("/pundit")
-async def ask_pundit(
+def pundit_context(
     request: AskPunditRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> StreamingResponse:
+) -> PunditContext:
+    """The cap check and the eight queries behind a pundit answer. A plain `def`
+    dependency so FastAPI runs it on the threadpool: the route it feeds is
+    `async def` for the sake of the stream, and this must not join it there."""
     if not is_unlimited(user.email):
         today = london_today(datetime.now(timezone.utc))
         if pundit_count_today(db, user, today) >= PUNDIT_DAILY_LIMIT:
@@ -185,10 +192,17 @@ async def ask_pundit(
     recent_bets = get_recent_user_bets_for_pundit(db, user.id)
     cup = get_current_cup(db, datetime.now(timezone.utc))
     leaderboard = cup_queries.leaderboard(db, cup) if cup is not None else []
-    context = build_pundit_context(
+    return build_pundit_context(
         user, fixtures, recent_bets, leaderboard, request.conversation
     )
 
+
+# The one route that stays `async def`: it awaits an OpenAI stream over async
+# httpx. Every query it needs was already run by `pundit_context` on a thread.
+@router.post("/pundit")
+async def ask_pundit(
+    context: PunditContext = Depends(pundit_context),
+) -> StreamingResponse:
     async def event_source() -> AsyncIterator[str]:
         async for event in stream_pundit_response(context):
             yield f"event: {event.event}\ndata: {json.dumps(event.data)}\n\n"
@@ -201,7 +215,7 @@ async def ask_pundit(
 
 
 @router.get("/cup/current")
-async def get_current_cup_view(
+def get_current_cup_view(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -235,7 +249,7 @@ async def get_current_cup_view(
 
 
 @router.get("/cup/{cup_id}")
-async def get_cup_view(
+def get_cup_view(
     cup_id: str,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
@@ -262,7 +276,7 @@ async def get_cup_view(
 
 
 @router.get("/cups")
-async def list_cups_view(
+def list_cups_view(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -281,8 +295,6 @@ async def list_cups_view(
         )
 
 
-# Plain `def`: the DB work is sync, so it runs on the threadpool rather than
-# blocking the event loop the way the `async def` routes above do.
 @router.get("/cups/all-time")
 def get_all_time(
     db: Session = Depends(get_db),
@@ -304,7 +316,7 @@ def get_all_time(
 
 
 @router.get("/me")
-async def get_me(
+def get_me(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -334,7 +346,7 @@ async def get_me(
 
 
 @router.put("/me/username")
-async def set_my_username(
+def set_my_username(
     payload: SetUsernameRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
